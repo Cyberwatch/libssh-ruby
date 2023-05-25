@@ -6,8 +6,11 @@ static void key_free(void *);
 static size_t key_memsize(const void *);
 
 static const rb_data_type_t key_type = {
-    "ssh_key", {NULL, key_free, key_memsize, {NULL, NULL}},           NULL,
-    NULL,      RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
+    "ssh_key",
+    {NULL, key_free, key_memsize,},
+    NULL,
+    NULL,
+    RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE key_alloc(VALUE klass) {

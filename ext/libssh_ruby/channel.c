@@ -21,7 +21,7 @@ typedef struct ChannelHolderStruct ChannelHolder;
 
 static const rb_data_type_t channel_type = {
     "ssh_channel",
-    {channel_mark, channel_free, channel_memsize, {NULL, NULL}},
+    {channel_mark, channel_free, channel_memsize,},
     NULL,
     NULL,
     RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,

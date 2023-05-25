@@ -20,8 +20,11 @@ struct ScpHolderStruct {
 typedef struct ScpHolderStruct ScpHolder;
 
 static const rb_data_type_t scp_type = {
-    "ssh_scp", {scp_mark, scp_free, scp_memsize, {NULL, NULL}},       NULL,
-    NULL,      RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
+    "ssh_scp",
+    {scp_mark, scp_free, scp_memsize},
+    NULL,
+    NULL,
+    RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE scp_alloc(VALUE klass) {
