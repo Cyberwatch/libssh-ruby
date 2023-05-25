@@ -16,7 +16,7 @@ static size_t session_memsize(const void *);
 
 const rb_data_type_t session_type = {
     "ssh_session",
-    {session_mark, session_free, session_memsize, {NULL, NULL}},
+    {session_mark, session_free, session_memsize,},
     NULL,
     NULL,
     RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
