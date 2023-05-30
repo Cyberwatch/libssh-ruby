@@ -583,6 +583,37 @@ static VALUE m_userauth_list(VALUE self) {
   return ary;
 }
 
+struct nogvl_userauth_publickey_args {
+  ssh_session session;
+  ssh_key privkey;
+  int rc;
+};
+
+static void *nogvl_userauth_publickey(void *ptr) {
+  struct nogvl_userauth_publickey_args *args = ptr;
+  args->rc = ssh_userauth_publickey(args->session, NULL, args->privkey);
+  return NULL;
+}
+
+/*
+ * @overload userauth_publickey(private_key)
+ *  Authenticate with a private key.
+ *  @param [LibSSH::Key] private_key
+ *  @return [Fixnum]
+ *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_publickey
+ */
+static VALUE m_userauth_publickey(VALUE self, VALUE private_key) {
+  SessionHolder *holder = libssh_ruby_session_holder(self);
+  KeyHolder *key_holder = libssh_ruby_key_holder(private_key);
+
+  struct nogvl_userauth_publickey_args args;
+  args.session = holder->session;
+  args.privkey = key_holder->key;
+  rb_thread_call_without_gvl(nogvl_userauth_publickey, &args, RUBY_UBF_IO, NULL);
+  RAISE_IF_ERROR(args.rc);
+  return INT2FIX(args.rc);
+}
+
 static void *nogvl_userauth_publickey_auto(void *ptr) {
   struct nogvl_session_args *args = ptr;
   args->rc = ssh_userauth_publickey_auto(args->session, NULL, NULL);
@@ -721,6 +752,8 @@ void Init_libssh_session() {
                    RUBY_METHOD_FUNC(m_userauth_password), 1);
   rb_define_method(rb_cLibSSHSession, "userauth_list",
                    RUBY_METHOD_FUNC(m_userauth_list), 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_publickey",
+                   RUBY_METHOD_FUNC(m_userauth_publickey), 1);
   rb_define_method(rb_cLibSSHSession, "userauth_publickey_auto",
                    RUBY_METHOD_FUNC(m_userauth_publickey_auto), 0);
   rb_define_method(rb_cLibSSHSession, "get_publickey",
