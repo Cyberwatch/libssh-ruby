@@ -67,11 +67,11 @@ RSpec.describe LibSSH::Session do
       session.host = SshHelper.host
       session.port = DockerHelper.port
       session.user = SshHelper.user
-      session.connect
     end
 
     context 'without valid private key' do
       it 'is denied' do
+        session.connect
         expect(session.userauth_publickey_auto).to eq(LibSSH::AUTH_DENIED)
       end
     end
@@ -82,6 +82,7 @@ RSpec.describe LibSSH::Session do
       end
 
       it 'returns available methods' do
+        session.connect
         expect(session.userauth_publickey_auto).to eq(LibSSH::AUTH_SUCCESS)
       end
     end
