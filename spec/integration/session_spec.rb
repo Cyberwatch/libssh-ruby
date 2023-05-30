@@ -62,6 +62,21 @@ RSpec.describe LibSSH::Session do
     end
   end
 
+  describe '#userauth_publickey' do
+    before do
+      session.host = SshHelper.host
+      session.port = DockerHelper.port
+      session.user = SshHelper.user
+      session.connect
+    end
+
+    it 'accepts good keys' do
+      identity = SshHelper.identity_path
+      privkey = LibSSH::PKI.import_privkey_base64(File.read(identity))
+      expect(session.userauth_publickey(privkey)).to eq(LibSSH::AUTH_SUCCESS)
+    end
+  end
+
   describe '#userauth_publickey_auto' do
     before do
       session.host = SshHelper.host
