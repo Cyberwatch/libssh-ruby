@@ -55,6 +55,8 @@ void Init_libssh_ruby(void) {
   rb_define_const(rb_mLibSSH, "AUTH_SUCCESS", INT2FIX(SSH_AUTH_SUCCESS));
   /* Return value that indicates EAGAIN in nonblocking mode. */
   rb_define_const(rb_mLibSSH, "AUTH_AGAIN", INT2FIX(SSH_AUTH_AGAIN));
+  /* Returned by ssh_userauth_kbdint when the server asks questions. */
+  rb_define_const(rb_mLibSSH, "AUTH_INFO", INT2FIX(SSH_AUTH_INFO));
 
   /* Major version defined in header. */
   rb_define_const(rb_mLibSSH, "LIBSSH_VERSION_MAJOR",
