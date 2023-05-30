@@ -1,6 +1,6 @@
-FROM ubuntu:latest
+FROM archlinux:latest
 
-RUN apt-get update && apt-get install -y openssh-server
+RUN pacman -Sy --noconfirm openssh
 
 RUN useradd -m alice && (echo alice:alice | chpasswd)
 COPY id_ecdsa id_ecdsa.pub id_ed25519 id_ed25519.pub /home/alice/.ssh/
@@ -14,4 +14,4 @@ RUN chmod 600 /home/alice/.ssh/* \
 COPY sshd_config /etc/ssh/sshd_config
 
 EXPOSE 22
-CMD ["service", "ssh", "start", "-D", "-e"]
+CMD ["/usr/sbin/sshd", "-D", "-e"]
