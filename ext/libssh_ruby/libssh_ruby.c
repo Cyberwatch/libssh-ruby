@@ -79,5 +79,6 @@ void Init_libssh_ruby(void) {
   Init_libssh_channel();
   Init_libssh_error();
   Init_libssh_key();
+  Init_libssh_pki();
   Init_libssh_scp();
 }

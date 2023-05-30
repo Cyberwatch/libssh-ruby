@@ -1,6 +1,7 @@
 #include "libssh_ruby.h"
 
 VALUE rb_cLibSSHKey;
+VALUE rb_mLibSSHPKI;
 
 static void key_free(void *);
 static size_t key_memsize(const void *);
@@ -112,6 +113,30 @@ static VALUE m_private_p(VALUE self) {
 }
 
 /*
+ * @overload import_privkey_base64(key_data)
+ *  Read a private key from memory. Raises an ArgumentError on invalid data.
+ *  @param [String] key_data
+ *  @return [LibSSH::Key]
+ *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_import_privkey_base64
+ */
+static VALUE m_pki_import_privkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key_data) {
+  VALUE ruby_key = key_alloc(rb_cLibSSHKey);
+  KeyHolder *holder = libssh_ruby_key_holder(ruby_key);
+  int rc = ssh_pki_import_privkey_base64(StringValueCStr(key_data), NULL, NULL, NULL, &holder->key);
+
+  if (rc == SSH_OK) {
+    return ruby_key;
+  } else {
+    VALUE exc_type = rb_const_get(rb_cObject, rb_intern("ArgumentError"));
+    VALUE argv[1];
+    argv[0] = rb_str_new_literal("invalid base64 private key");
+    VALUE exc = rb_class_new_instance(1, argv, exc_type);
+    rb_exc_raise(exc);
+    return Qnil;
+  }
+}
+
+/*
  * Document-class: LibSSH::Key
  * Wrapper for ssh_key struct in libssh.
  *
@@ -142,4 +167,17 @@ void Init_libssh_key(void) {
   rb_define_method(rb_cLibSSHKey, "type_str", RUBY_METHOD_FUNC(m_type_str), 0);
   rb_define_method(rb_cLibSSHKey, "public?", RUBY_METHOD_FUNC(m_public_p), 0);
   rb_define_method(rb_cLibSSHKey, "private?", RUBY_METHOD_FUNC(m_private_p), 0);
+}
+
+/*
+ * Document-class: LibSSH::PKI
+ * Bindings for the ssh_pki_* functions.
+ *
+ * @since 0.5.0
+ * @see http://api.libssh.org/stable/group__libssh__pki.html
+ */
+
+void Init_libssh_pki(void) {
+  rb_mLibSSHPKI = rb_define_class_under(rb_mLibSSH, "PKI", rb_cObject);
+  rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", RUBY_METHOD_FUNC(m_pki_import_privkey_base64), 1);
 }
