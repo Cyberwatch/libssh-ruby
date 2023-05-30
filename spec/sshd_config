@@ -1,7 +1,7 @@
 AuthorizedKeysFile .ssh/authorized_keys
 
 UsePAM yes
-ChallengeResponseAuthentication no
+KbdInteractiveAuthentication yes
 PasswordAuthentication yes
 PermitEmptyPasswords no
 PermitRootLogin no

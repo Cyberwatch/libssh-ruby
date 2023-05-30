@@ -639,6 +639,46 @@ static VALUE m_userauth_publickey_auto(VALUE self) {
 }
 
 /*
+ * @overload userauth_kbdint
+ *  Try to authenticate through the "keyboard-interactive" method.
+ *  @return [Fixnum]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint
+ */
+static VALUE m_userauth_kbdint(VALUE self) {
+  SessionHolder *holder = libssh_ruby_session_holder(self);
+  int rc = ssh_userauth_kbdint(holder->session, NULL, NULL);
+  RAISE_IF_ERROR(rc);
+  return INT2FIX(rc);
+}
+
+/*
+ * @overload userauth_kbdint_getnprompts
+ *  Get the number of prompts (questions) the server has given.
+ *  @return [Fixnum]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_getnprompts
+ */
+static VALUE m_userauth_kbdint_getnpromts(VALUE self) {
+  SessionHolder *holder = libssh_ruby_session_holder(self);
+  int n = ssh_userauth_kbdint_getnprompts(holder->session);
+  return INT2FIX(n);
+}
+
+/*
+ * @overload userauth_kbdint_setanswer(i, answer)
+ *  Set the answer to a prompt.
+ *  @param [Fixnum] i Index of the prompt to answer.
+ *  @param [String] answer
+ *  @return [Fixnum]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_setanswer
+ */
+static VALUE m_userauth_kbdint_setanswer(VALUE self, VALUE i, VALUE answer) {
+  SessionHolder *holder = libssh_ruby_session_holder(self);
+  int rc = ssh_userauth_kbdint_setanswer(holder->session, FIX2INT(i), StringValueCStr(answer));
+  RAISE_IF_ERROR(rc);
+  return Qnil;
+}
+
+/*
  * @overload get_publickey
  *  Get the server public key from a session.
  *  @return [Key]
@@ -756,6 +796,12 @@ void Init_libssh_session() {
                    RUBY_METHOD_FUNC(m_userauth_publickey), 1);
   rb_define_method(rb_cLibSSHSession, "userauth_publickey_auto",
                    RUBY_METHOD_FUNC(m_userauth_publickey_auto), 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint",
+                   RUBY_METHOD_FUNC(m_userauth_kbdint), 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_getnprompts",
+                   RUBY_METHOD_FUNC(m_userauth_kbdint_getnpromts), 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",
+                   RUBY_METHOD_FUNC(m_userauth_kbdint_setanswer), 2);
   rb_define_method(rb_cLibSSHSession, "get_publickey",
                    RUBY_METHOD_FUNC(m_get_publickey), 0);
   rb_define_method(rb_cLibSSHSession, "write_knownhost",

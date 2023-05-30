@@ -57,7 +57,7 @@ RSpec.describe LibSSH::Session do
       end
 
       it 'returns available methods' do
-        expect(session.userauth_list).to match_array(%i[publickey password])
+        expect(session.userauth_list).to match_array(%i[publickey password interactive])
       end
     end
   end
@@ -120,6 +120,38 @@ RSpec.describe LibSSH::Session do
     context 'with valid password' do
       it 'access is granted' do
         expect(session.userauth_password(SshHelper.password)).to eq(LibSSH::AUTH_SUCCESS)
+      end
+    end
+  end
+
+  describe '#userauth_kbdint' do
+    before do
+      session.host = SshHelper.host
+      session.port = DockerHelper.port
+      session.user = SshHelper.user
+      session.connect
+    end
+
+    def kbdint(password)
+      loop do
+        rc = session.userauth_kbdint
+        return rc if rc != LibSSH::AUTH_INFO
+
+        nprompts = session.userauth_kbdint_getnprompts
+        expect(nprompts).to be <= 1
+        session.userauth_kbdint_setanswer(0, password) if nprompts == 1
+      end
+    end
+
+    context 'with wrong password' do
+      it 'is denied' do
+        expect(kbdint('12345')).to eq(LibSSH::AUTH_DENIED)
+      end
+    end
+
+    context 'with valid password' do
+      it 'access is granted' do
+        expect(kbdint(SshHelper.password)).to eq(LibSSH::AUTH_SUCCESS)
       end
     end
   end
