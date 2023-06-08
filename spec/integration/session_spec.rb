@@ -7,6 +7,18 @@ RSpec.describe LibSSH::Session do
     session.disconnect
   end
 
+  describe '#user=' do
+    it 'is nullable' do
+      session.user = nil
+    end
+  end
+
+  describe '#knownhosts' do
+    it 'is nullable' do
+      session.knownhosts = nil
+    end
+  end
+
   describe '#connect' do
     context 'without hostname' do
       it 'raises an error' do
