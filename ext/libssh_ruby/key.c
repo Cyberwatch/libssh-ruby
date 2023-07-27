@@ -112,6 +112,14 @@ static VALUE m_private_p(VALUE self) {
   return ssh_key_is_private(libssh_ruby_key_holder(self)->key) ? Qtrue : Qfalse;
 }
 
+static void raise_argument_error(const char* message) {
+    VALUE exc_type = rb_const_get(rb_cObject, rb_intern("ArgumentError"));
+    VALUE argv[1];
+    argv[0] = rb_str_new2(message);
+    VALUE exc = rb_class_new_instance(1, argv, exc_type);
+    rb_exc_raise(exc);
+}
+
 /*
  * @overload import_privkey_base64(key_data)
  *  Read a private key from memory. Raises an ArgumentError on invalid data.
@@ -127,11 +135,28 @@ static VALUE m_pki_import_privkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key_da
   if (rc == SSH_OK) {
     return ruby_key;
   } else {
-    VALUE exc_type = rb_const_get(rb_cObject, rb_intern("ArgumentError"));
-    VALUE argv[1];
-    argv[0] = rb_str_new_literal("invalid base64 private key");
-    VALUE exc = rb_class_new_instance(1, argv, exc_type);
-    rb_exc_raise(exc);
+    raise_argument_error("invalid base64 private key");
+    return Qnil;
+  }
+}
+
+/*
+ * @overload export_privkey_to_pubkey(privkey)
+ *  Convert a private key to a public key. Raises an ArgumentError on invalid data.
+ *  @param [LibSSH::Key] privkey Private key.
+ *  @return [LibSSH::Key] Public key.
+ *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_export_privkey_to_pubkey
+ */
+static VALUE m_pki_export_privkey_to_pubkey(RB_UNUSED_VAR(VALUE self), VALUE privkey) {
+  VALUE pubkey = key_alloc(rb_cLibSSHKey);
+  KeyHolder *pubkey_holder = libssh_ruby_key_holder(pubkey);
+  KeyHolder *privkey_holder = libssh_ruby_key_holder(privkey);
+  int rc = ssh_pki_export_privkey_to_pubkey(privkey_holder->key, &pubkey_holder->key);
+
+  if (rc == SSH_OK) {
+    return pubkey;
+  } else {
+    raise_argument_error("could not extract public key from private key");
     return Qnil;
   }
 }
@@ -180,4 +205,5 @@ void Init_libssh_key(void) {
 void Init_libssh_pki(void) {
   rb_mLibSSHPKI = rb_define_class_under(rb_mLibSSH, "PKI", rb_cObject);
   rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", RUBY_METHOD_FUNC(m_pki_import_privkey_base64), 1);
+  rb_define_module_function(rb_mLibSSHPKI, "export_privkey_to_pubkey", RUBY_METHOD_FUNC(m_pki_export_privkey_to_pubkey), 1);
 }
