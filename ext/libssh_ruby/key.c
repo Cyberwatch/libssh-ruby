@@ -162,6 +162,27 @@ static VALUE m_pki_export_privkey_to_pubkey(RB_UNUSED_VAR(VALUE self), VALUE pri
 }
 
 /*
+ * @overload export_pubkey_base64(key)
+ *  Convert a public key to a base64 encoded key. Raises an ArgumentError on invalid data.
+ *  @param [LibSSH::Key] key
+ *  @return [String] Base64-encoded key.
+ *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_export_pubkey_base64
+ */
+static VALUE m_pki_export_pubkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key) {
+  KeyHolder *holder = libssh_ruby_key_holder(key);
+  char *b64 = NULL;
+  int rc = ssh_pki_export_pubkey_base64(holder->key, &b64);
+  VALUE rv = Qnil;
+  if (rc == SSH_OK) {
+    rv = rb_str_new2(b64);
+  } else {
+    raise_argument_error("could not export public key into base64");
+  }
+  SSH_STRING_FREE_CHAR(b64);
+  return rv;
+}
+
+/*
  * Document-class: LibSSH::Key
  * Wrapper for ssh_key struct in libssh.
  *
@@ -206,4 +227,5 @@ void Init_libssh_pki(void) {
   rb_mLibSSHPKI = rb_define_class_under(rb_mLibSSH, "PKI", rb_cObject);
   rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", RUBY_METHOD_FUNC(m_pki_import_privkey_base64), 1);
   rb_define_module_function(rb_mLibSSHPKI, "export_privkey_to_pubkey", RUBY_METHOD_FUNC(m_pki_export_privkey_to_pubkey), 1);
+  rb_define_module_function(rb_mLibSSHPKI, "export_pubkey_base64", RUBY_METHOD_FUNC(m_pki_export_pubkey_base64), 1);
 }
