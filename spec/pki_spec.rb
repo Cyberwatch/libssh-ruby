@@ -19,5 +19,7 @@ RSpec.describe LibSSH::PKI do
   specify '.export_privkey_to_pubkey' do
     pubkey = LibSSH::PKI.export_privkey_to_pubkey(privkey)
     expect(pubkey.type_str).to eq 'ssh-ed25519'
+    expect(LibSSH::PKI.export_pubkey_base64(pubkey)).to eq \
+      'AAAAC3NzaC1lZDI1NTE5AAAAIPuI+rpberfNkVz6Gf4QiUKYz3erfLZ5B4WxBge4I9Ax'
   end
 end
