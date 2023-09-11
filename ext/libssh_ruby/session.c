@@ -279,6 +279,28 @@ static VALUE m_set_key_exchange(VALUE self, VALUE kex) {
 }
 
 /*
+ * @overload hmac_c_s=(methods)
+ *  Set the allowed HMAC algorithms from the client to the server.
+ *  @param [Array<String>] methods
+ *  @return [nil]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_C_S)
+ */
+static VALUE m_set_hmac_c_s(VALUE self, VALUE algos) {
+  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_C_S, algos);
+}
+
+/*
+ * @overload hmac_s_c=(methods)
+ *  Set the allowed HMAC algorithms from the server to the client.
+ *  @param [Array<String>] methods
+ *  @return [nil]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_S_C)
+ */
+static VALUE m_set_hmac_s_c(VALUE self, VALUE algos) {
+  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_S_C, algos);
+}
+
+/*
  * @overload hostkeys=(key_types)
  *  Set the preferred server host key types
  *  @since 0.2.0
@@ -763,6 +785,10 @@ void Init_libssh_session() {
                    RUBY_METHOD_FUNC(m_set_protocol), 1);
   rb_define_method(rb_cLibSSHSession, "key_exchange=",
                    RUBY_METHOD_FUNC(m_set_key_exchange), 1);
+  rb_define_method(rb_cLibSSHSession, "hmac_c_s=",
+                   RUBY_METHOD_FUNC(m_set_hmac_c_s), 1);
+  rb_define_method(rb_cLibSSHSession, "hmac_s_c=",
+                   RUBY_METHOD_FUNC(m_set_hmac_s_c), 1);
   rb_define_method(rb_cLibSSHSession, "hostkeys=",
                    RUBY_METHOD_FUNC(m_set_hostkeys), 1);
   rb_define_method(rb_cLibSSHSession, "compression=",
