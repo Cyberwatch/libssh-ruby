@@ -244,6 +244,22 @@ static VALUE m_request_pty(VALUE self) {
   return Qnil;
 }
 
+/*
+ * @overload request_send_signal
+ *  Send a signal to the remote process.
+ *  @param [String] signal The signal to send without the SIG prefix (e.g. 'HUP').
+ *  @return [nil]
+ *  @see http://api.libssh.org/stable/group__libssh__channel.html
+ *    ssh_channel_request_send_signal
+ */
+static VALUE m_request_send_signal(VALUE self, VALUE signal) {
+  ChannelHolder *holder;
+  TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
+  int rc = ssh_channel_request_send_signal(holder->channel, StringValueCStr(signal));
+  RAISE_IF_ERROR(rc);
+  return Qnil;
+}
+
 struct nogvl_read_args {
   ssh_channel channel;
   char *buf;
@@ -640,6 +656,8 @@ void Init_libssh_channel(void) {
                    RUBY_METHOD_FUNC(m_request_exec), 1);
   rb_define_method(rb_cLibSSHChannel, "request_pty",
                    RUBY_METHOD_FUNC(m_request_pty), 0);
+  rb_define_method(rb_cLibSSHChannel, "request_send_signal",
+                   RUBY_METHOD_FUNC(m_request_send_signal), 1);
   rb_define_method(rb_cLibSSHChannel, "read", RUBY_METHOD_FUNC(m_read), -1);
   rb_define_method(rb_cLibSSHChannel, "read_nonblocking",
                    RUBY_METHOD_FUNC(m_read_nonblocking), -1);
