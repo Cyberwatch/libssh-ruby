@@ -66,6 +66,24 @@ RSpec.describe LibSSH::Channel do
     end
   end
 
+  describe '#request_send_signal' do
+    before do
+      session.connect
+      session.userauth_publickey_auto
+    end
+
+    it 'sends a signal to the remote process' do
+      before = Time.now
+      channel.open_session do
+        channel.request_exec('sleep 2')
+        channel.request_send_signal('HUP')
+        LibSSH::Channel.select([channel], [], [], 1) until channel.eof?
+      end
+      after = Time.now
+      expect(after - before).to be < 1
+    end
+  end
+
   describe '#read_nonblocking' do
     before do
       session.connect
