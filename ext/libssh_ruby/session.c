@@ -313,6 +313,19 @@ static VALUE m_set_hostkeys(VALUE self, VALUE hostkeys) {
 }
 
 /*
+ * @overload publickey_accepted_types=(publickey_types)
+ *  Set the preferred public key algorithms to be used for authentication.
+ *  @param [Array<String>] publickey_types
+ *  @return [nil]
+ *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES)
+ */
+static VALUE m_set_publickey_accepted_types(VALUE self, VALUE publickey_types) {
+  return set_comma_separated_option(self,
+                                    SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES,
+                                    publickey_types);
+}
+
+/*
  * @overload compression=(algorithm)
  *  Set the compression to use for both directions communication
  *  @since 0.2.0
@@ -791,6 +804,8 @@ void Init_libssh_session() {
                    RUBY_METHOD_FUNC(m_set_hmac_s_c), 1);
   rb_define_method(rb_cLibSSHSession, "hostkeys=",
                    RUBY_METHOD_FUNC(m_set_hostkeys), 1);
+  rb_define_method(rb_cLibSSHSession, "publickey_accepted_types=",
+                   RUBY_METHOD_FUNC(m_set_publickey_accepted_types), 1);
   rb_define_method(rb_cLibSSHSession, "compression=",
                    RUBY_METHOD_FUNC(m_set_compression), 1);
   rb_define_method(rb_cLibSSHSession, "compression_level=",
