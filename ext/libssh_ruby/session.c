@@ -99,19 +99,12 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   return Qnil;
 }
 
-static VALUE set_option_value(VALUE self, enum ssh_options_e type, const void* value) {
+static VALUE set_string_option(VALUE self, enum ssh_options_e type, VALUE str) {
   SessionHolder *holder;
   TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
+  const void* value = NIL_P(str) ? NULL : StringValueCStr(str);
   RAISE_IF_ERROR(ssh_options_set(holder->session, type, value));
   return Qnil;
-}
-
-static VALUE set_string_option(VALUE self, enum ssh_options_e type, VALUE str) {
-  return set_option_value(self, type, StringValueCStr(str));
-}
-
-static VALUE set_nullable_string_option(VALUE self, enum ssh_options_e type, VALUE str) {
-  return set_option_value(self, type, NIL_P(str) ? NULL : StringValueCStr(str));
 }
 
 /*
@@ -134,7 +127,7 @@ static VALUE m_set_host(VALUE self, VALUE host) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_USER)
  */
 static VALUE m_set_user(VALUE self, VALUE user) {
-  return set_nullable_string_option(self, SSH_OPTIONS_USER, user);
+  return set_string_option(self, SSH_OPTIONS_USER, user);
 }
 
 static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
@@ -181,7 +174,7 @@ static VALUE m_set_bindaddr(VALUE self, VALUE addr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_KNOWNHOSTS)
  */
 static VALUE m_set_knownhosts(VALUE self, VALUE path) {
-  return set_nullable_string_option(self, SSH_OPTIONS_KNOWNHOSTS, path);
+  return set_string_option(self, SSH_OPTIONS_KNOWNHOSTS, path);
 }
 
 static VALUE set_long_option(VALUE self, enum ssh_options_e type, VALUE i) {
