@@ -24,13 +24,15 @@ void Init_libssh_error(void) {
 }
 
 void libssh_ruby_raise(ssh_session session) {
-  VALUE exc, code, message;
+  VALUE exc, code;
   VALUE argv[1];
 
-  code = INT2FIX(ssh_get_error_code(session));
-  message = rb_str_new_cstr(ssh_get_error(session));
-  argv[0] = message;
+  /* Empty messages are converted to nil so that #to_s defaults to the error type. */
+  const char* message = ssh_get_error(session);
+  argv[0] = (message != NULL && message[0] != '\0') ? rb_str_new_cstr(message) : Qnil;
+
   exc = rb_class_new_instance(1, argv, rb_eLibSSHError);
+  code = INT2FIX(ssh_get_error_code(session));
   rb_ivar_set(exc, id_code, code);
 
   rb_exc_raise(exc);
