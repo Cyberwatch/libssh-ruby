@@ -15,7 +15,8 @@ RSpec.describe LibSSH::Session do
 
   describe '#host=' do
     it 'raises error on bad host' do
-      expect { session.host = "foo_bar" }.to raise_error 'LibSSH::Error'
+      expect { session.host = nil }.to raise_error ArgumentError, 'Invalid host: nil'
+      expect { session.host = "foo_bar" }.to raise_error ArgumentError, 'Invalid host: "foo_bar"'
     end
   end
 

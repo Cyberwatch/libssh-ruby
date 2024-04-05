@@ -99,11 +99,12 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   return Qnil;
 }
 
-static VALUE set_string_option(VALUE self, enum ssh_options_e type, VALUE str) {
+static VALUE set_string_option(VALUE self, enum ssh_options_e type, const char* name, VALUE str) {
   SessionHolder *holder;
   TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
   const void* value = NIL_P(str) ? NULL : StringValueCStr(str);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, type, value));
+  if (ssh_options_set(holder->session, type, value) < 0)
+    rb_raise(rb_eArgError, "Invalid %s: %+" PRIsVALUE, name, str);
   return Qnil;
 }
 
@@ -115,7 +116,7 @@ static VALUE set_string_option(VALUE self, enum ssh_options_e type, VALUE str) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HOST)
  */
 static VALUE m_set_host(VALUE self, VALUE host) {
-  return set_string_option(self, SSH_OPTIONS_HOST, host);
+  return set_string_option(self, SSH_OPTIONS_HOST, "host", host);
 }
 
 /*
@@ -127,7 +128,7 @@ static VALUE m_set_host(VALUE self, VALUE host) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_USER)
  */
 static VALUE m_set_user(VALUE self, VALUE user) {
-  return set_string_option(self, SSH_OPTIONS_USER, user);
+  return set_string_option(self, SSH_OPTIONS_USER, "user", user);
 }
 
 static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
@@ -162,7 +163,7 @@ static VALUE m_set_port(VALUE self, VALUE port) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_BINDADDR)
  */
 static VALUE m_set_bindaddr(VALUE self, VALUE addr) {
-  return set_string_option(self, SSH_OPTIONS_BINDADDR, addr);
+  return set_string_option(self, SSH_OPTIONS_BINDADDR, "bind address", addr);
 }
 
 /*
@@ -174,7 +175,7 @@ static VALUE m_set_bindaddr(VALUE self, VALUE addr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_KNOWNHOSTS)
  */
 static VALUE m_set_knownhosts(VALUE self, VALUE path) {
-  return set_string_option(self, SSH_OPTIONS_KNOWNHOSTS, path);
+  return set_string_option(self, SSH_OPTIONS_KNOWNHOSTS, "known_hosts file path", path);
 }
 
 static VALUE set_long_option(VALUE self, enum ssh_options_e type, VALUE i) {
@@ -250,13 +251,13 @@ static VALUE m_set_protocol(VALUE self, VALUE protocols) {
 }
 
 static VALUE set_comma_separated_option(VALUE self, enum ssh_options_e type,
-                                        VALUE ary) {
+                                        const char* name, VALUE ary) {
   VALUE str;
 
   Check_Type(ary, T_ARRAY);
   str = rb_ary_join(ary, rb_str_new_cstr(","));
 
-  return set_string_option(self, type, str);
+  return set_string_option(self, type, name, str);
 }
 
 /*
@@ -268,7 +269,7 @@ static VALUE set_comma_separated_option(VALUE self, enum ssh_options_e type,
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_KEY_EXCHANGE)
  */
 static VALUE m_set_key_exchange(VALUE self, VALUE kex) {
-  return set_comma_separated_option(self, SSH_OPTIONS_KEY_EXCHANGE, kex);
+  return set_comma_separated_option(self, SSH_OPTIONS_KEY_EXCHANGE, "key exchange methods", kex);
 }
 
 /*
@@ -279,7 +280,7 @@ static VALUE m_set_key_exchange(VALUE self, VALUE kex) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_C_S)
  */
 static VALUE m_set_hmac_c_s(VALUE self, VALUE algos) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_C_S, algos);
+  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_C_S, "client-to-server HMAC algorithms", algos);
 }
 
 /*
@@ -290,7 +291,7 @@ static VALUE m_set_hmac_c_s(VALUE self, VALUE algos) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_S_C)
  */
 static VALUE m_set_hmac_s_c(VALUE self, VALUE algos) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_S_C, algos);
+  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_S_C, "server-to-client HMAC algorithms", algos);
 }
 
 /*
@@ -302,7 +303,7 @@ static VALUE m_set_hmac_s_c(VALUE self, VALUE algos) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HOSTKEYS)
  */
 static VALUE m_set_hostkeys(VALUE self, VALUE hostkeys) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HOSTKEYS, hostkeys);
+  return set_comma_separated_option(self, SSH_OPTIONS_HOSTKEYS, "host key types", hostkeys);
 }
 
 /*
@@ -315,6 +316,7 @@ static VALUE m_set_hostkeys(VALUE self, VALUE hostkeys) {
 static VALUE m_set_publickey_accepted_types(VALUE self, VALUE publickey_types) {
   return set_comma_separated_option(self,
                                     SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES,
+                                    "public key types",
                                     publickey_types);
 }
 
@@ -343,7 +345,7 @@ static VALUE m_set_compression(VALUE self, VALUE compression) {
 
     return Qnil;
   } else {
-    return set_string_option(self, SSH_OPTIONS_COMPRESSION, compression);
+    return set_string_option(self, SSH_OPTIONS_COMPRESSION, "compression mode", compression);
   }
 }
 
@@ -381,7 +383,7 @@ static VALUE m_set_stricthostkeycheck(VALUE self, VALUE enable) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_PROXYCOMMAND)
  */
 static VALUE m_set_proxycommand(VALUE self, VALUE proxycommand) {
-  return set_string_option(self, SSH_OPTIONS_PROXYCOMMAND, proxycommand);
+  return set_string_option(self, SSH_OPTIONS_PROXYCOMMAND, "proxy command", proxycommand);
 }
 
 /*
@@ -393,7 +395,7 @@ static VALUE m_set_proxycommand(VALUE self, VALUE proxycommand) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_GSSAPI_CLIENT_IDENTITY)
  */
 static VALUE m_set_gssapi_client_identity(VALUE self, VALUE identity) {
-  return set_string_option(self, SSH_OPTIONS_GSSAPI_CLIENT_IDENTITY, identity);
+  return set_string_option(self, SSH_OPTIONS_GSSAPI_CLIENT_IDENTITY, "GSS-API client identity", identity);
 }
 
 /*
@@ -405,7 +407,7 @@ static VALUE m_set_gssapi_client_identity(VALUE self, VALUE identity) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_GSSAPI_SERVER_IDENTITY)
  */
 static VALUE m_set_gssapi_server_identity(VALUE self, VALUE identity) {
-  return set_string_option(self, SSH_OPTIONS_GSSAPI_SERVER_IDENTITY, identity);
+  return set_string_option(self, SSH_OPTIONS_GSSAPI_SERVER_IDENTITY, "GSS-API server identity", identity);
 }
 
 /*
