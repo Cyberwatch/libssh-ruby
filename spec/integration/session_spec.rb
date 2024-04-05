@@ -13,6 +13,12 @@ RSpec.describe LibSSH::Session do
     end
   end
 
+  describe '#host=' do
+    it 'raises error on bad host' do
+      expect { session.host = "foo_bar" }.to raise_error 'LibSSH::Error'
+    end
+  end
+
   describe '#knownhosts' do
     it 'is nullable' do
       session.knownhosts = nil
