@@ -6,19 +6,30 @@ require 'json'
 require 'libssh'
 
 module DockerHelper
-  IMAGE_NAME = 'libssh-ruby'.freeze
+  SPAWN_SSHD = <<~'SH'
+    docker run --detach \
+      -e PUBLIC_KEY_FILE=/spec/id_ed25519.pub \
+      -e PASSWORD_ACCESS=true \
+      -e USER_NAME=alice \
+      -e USER_PASSWORD=alice \
+      -v ./spec:/spec:ro \
+      -v ./spec/sshd_config:/config/sshd/sshd_config.d/99-override.conf:ro \
+      --publish-all \
+      lscr.io/linuxserver/openssh-server:latest
+  SH
 
   class << self
     def start
-      @container_id = IO.popen(['docker', 'run', '--detach', '--publish-all', IMAGE_NAME], &:read)
+      @container_id = IO.popen(SPAWN_SSHD, &:read)
       unless $CHILD_STATUS.success?
         raise 'Cannot start Docker container'
       end
       @container_id.chomp!
 
       container = JSON.parse(IO.popen(['docker', 'inspect', @container_id], &:read))[0]
-      @port = container['NetworkSettings']['Ports']['22/tcp'][0]['HostPort'].to_i
+      @port = container['NetworkSettings']['Ports']['2222/tcp'][0]['HostPort'].to_i
       wait_for_ready
+      @host_key = IO.popen(['docker', 'exec', @container_id, 'cat', '/config/ssh_host_keys/ssh_host_ed25519_key.pub'], &:read)
     end
 
     def stop
@@ -27,15 +38,17 @@ module DockerHelper
       end
     end
 
-    attr_reader :port
+    attr_reader :port, :host_key
 
     private
 
     def wait_for_ready
       10.times do
-        if system('docker', 'run', "--link=#{@container_id}:sshd", IMAGE_NAME, 'ssh', '-i', '/home/alice/.ssh/id_ed25519', '-oStrictHostKeyChecking=no', 'alice@sshd', 'exit', '0', err: File::NULL)
-          return
-        end
+        sleep 1
+        return if system('docker', 'exec', @container_id,
+                         'ssh', '-i', '/spec/id_ed25519', '-oStrictHostKeyChecking=no', '-p2222', 'alice@127.0.0.1',
+                         'exit', '0',
+                         err: File::NULL)
       end
       raise 'Failed to connect to the Docker container'
     end
@@ -89,12 +102,11 @@ module SshHelper
       FileUtils.rm_f(absent_known_hosts)
       File.open(empty_known_hosts, 'w') {}
 
-      key = File.read(File.join(__dir__, "ssh_host_#{default_key_type}_key.pub")).slice(/\A[^ ]+ \S+/, 0)
       File.open(valid_known_hosts, 'w') do |f|
-        f.puts("[#{host}]:#{DockerHelper.port} #{key}")
+        f.puts("[#{host}]:#{DockerHelper.port} #{DockerHelper.host_key}")
       end
       File.open(invalid_known_hosts, 'w') do |f|
-        f.puts("[#{host}]:#{DockerHelper.port} #{key.sub('A', 'B')}")
+        f.puts("[#{host}]:#{DockerHelper.port} #{DockerHelper.host_key.sub('A', 'B')}")
       end
     end
   end
