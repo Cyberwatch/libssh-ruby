@@ -10,9 +10,4 @@ end
 
 RSpec::Core::RakeTask.new(:spec)
 
-task :default => %i[clobber compile docker spec]
-
-desc 'Build docker image for integration test'
-task :docker do
-  sh 'docker build -t libssh-ruby spec'
-end
+task :default => %i[clobber compile spec]
