@@ -74,7 +74,7 @@ void Init_libssh_ruby(void) {
   rb_define_const(rb_mLibSSH, "LIBSSH_VERSION",
                   rb_str_new_cstr(SSH_STRINGIFY(LIBSSH_VERSION)));
 
-  rb_define_singleton_method(rb_mLibSSH, "version", RUBY_METHOD_FUNC(m_version),
+  rb_define_singleton_method(rb_mLibSSH, "version", m_version,
                              -1);
 
   Init_libssh_session();

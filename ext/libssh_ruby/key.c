@@ -206,13 +206,12 @@ void Init_libssh_key(void) {
 #endif
 #undef E
 
-  rb_define_method(rb_cLibSSHKey, "initialize", RUBY_METHOD_FUNC(m_initialize),
-                   0);
-  rb_define_method(rb_cLibSSHKey, "sha1", RUBY_METHOD_FUNC(m_sha1), 0);
-  rb_define_method(rb_cLibSSHKey, "type", RUBY_METHOD_FUNC(m_type), 0);
-  rb_define_method(rb_cLibSSHKey, "type_str", RUBY_METHOD_FUNC(m_type_str), 0);
-  rb_define_method(rb_cLibSSHKey, "public?", RUBY_METHOD_FUNC(m_public_p), 0);
-  rb_define_method(rb_cLibSSHKey, "private?", RUBY_METHOD_FUNC(m_private_p), 0);
+  rb_define_method(rb_cLibSSHKey, "initialize", m_initialize, 0);
+  rb_define_method(rb_cLibSSHKey, "sha1",       m_sha1,       0);
+  rb_define_method(rb_cLibSSHKey, "type",       m_type,       0);
+  rb_define_method(rb_cLibSSHKey, "type_str",   m_type_str,   0);
+  rb_define_method(rb_cLibSSHKey, "public?",    m_public_p,   0);
+  rb_define_method(rb_cLibSSHKey, "private?",   m_private_p,  0);
 }
 
 /*
@@ -225,7 +224,7 @@ void Init_libssh_key(void) {
 
 void Init_libssh_pki(void) {
   rb_mLibSSHPKI = rb_define_class_under(rb_mLibSSH, "PKI", rb_cObject);
-  rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", RUBY_METHOD_FUNC(m_pki_import_privkey_base64), 1);
-  rb_define_module_function(rb_mLibSSHPKI, "export_privkey_to_pubkey", RUBY_METHOD_FUNC(m_pki_export_privkey_to_pubkey), 1);
-  rb_define_module_function(rb_mLibSSHPKI, "export_pubkey_base64", RUBY_METHOD_FUNC(m_pki_export_pubkey_base64), 1);
+  rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", m_pki_import_privkey_base64, 1);
+  rb_define_module_function(rb_mLibSSHPKI, "export_privkey_to_pubkey", m_pki_export_privkey_to_pubkey, 1);
+  rb_define_module_function(rb_mLibSSHPKI, "export_pubkey_base64", m_pki_export_pubkey_base64, 1);
 }

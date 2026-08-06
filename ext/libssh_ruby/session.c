@@ -773,81 +773,46 @@ void Init_libssh_session() {
   I(gssapi_mic);
 #undef I
 
-  rb_define_method(rb_cLibSSHSession, "initialize",
-                   RUBY_METHOD_FUNC(m_initialize), 0);
+  rb_define_method(rb_cLibSSHSession, "initialize", m_initialize, 0);
 
-  rb_define_method(rb_cLibSSHSession, "log_verbosity=",
-                   RUBY_METHOD_FUNC(m_set_log_verbosity), 1);
-  rb_define_method(rb_cLibSSHSession, "host=", RUBY_METHOD_FUNC(m_set_host), 1);
-  rb_define_method(rb_cLibSSHSession, "user=", RUBY_METHOD_FUNC(m_set_user), 1);
-  rb_define_method(rb_cLibSSHSession, "port=", RUBY_METHOD_FUNC(m_set_port), 1);
-  rb_define_method(rb_cLibSSHSession, "bindaddr=",
-                   RUBY_METHOD_FUNC(m_set_bindaddr), 1);
-  rb_define_method(rb_cLibSSHSession, "knownhosts=",
-                   RUBY_METHOD_FUNC(m_set_knownhosts), 1);
-  rb_define_method(rb_cLibSSHSession, "timeout=",
-                   RUBY_METHOD_FUNC(m_set_timeout), 1);
-  rb_define_method(rb_cLibSSHSession, "timeout_usec=",
-                   RUBY_METHOD_FUNC(m_set_timeout_usec), 1);
-  rb_define_method(rb_cLibSSHSession, "protocol=",
-                   RUBY_METHOD_FUNC(m_set_protocol), 1);
-  rb_define_method(rb_cLibSSHSession, "key_exchange=",
-                   RUBY_METHOD_FUNC(m_set_key_exchange), 1);
-  rb_define_method(rb_cLibSSHSession, "hmac_c_s=",
-                   RUBY_METHOD_FUNC(m_set_hmac_c_s), 1);
-  rb_define_method(rb_cLibSSHSession, "hmac_s_c=",
-                   RUBY_METHOD_FUNC(m_set_hmac_s_c), 1);
-  rb_define_method(rb_cLibSSHSession, "hostkeys=",
-                   RUBY_METHOD_FUNC(m_set_hostkeys), 1);
-  rb_define_method(rb_cLibSSHSession, "publickey_accepted_types=",
-                   RUBY_METHOD_FUNC(m_set_publickey_accepted_types), 1);
-  rb_define_method(rb_cLibSSHSession, "compression=",
-                   RUBY_METHOD_FUNC(m_set_compression), 1);
-  rb_define_method(rb_cLibSSHSession, "compression_level=",
-                   RUBY_METHOD_FUNC(m_set_compression_level), 1);
-  rb_define_method(rb_cLibSSHSession, "compression_level=",
-                   RUBY_METHOD_FUNC(m_set_compression_level), 1);
-  rb_define_method(rb_cLibSSHSession, "stricthostkeycheck=",
-                   RUBY_METHOD_FUNC(m_set_stricthostkeycheck), 1);
-  rb_define_method(rb_cLibSSHSession, "proxycommand=",
-                   RUBY_METHOD_FUNC(m_set_proxycommand), 1);
-  rb_define_method(rb_cLibSSHSession, "gssapi_client_identity=",
-                   RUBY_METHOD_FUNC(m_set_gssapi_client_identity), 1);
-  rb_define_method(rb_cLibSSHSession, "gssapi_server_identity=",
-                   RUBY_METHOD_FUNC(m_set_gssapi_server_identity), 1);
-  rb_define_method(rb_cLibSSHSession, "gssapi_delegate_credentials=",
-                   RUBY_METHOD_FUNC(m_set_gssapi_delegate_credentials), 1);
+  rb_define_method(rb_cLibSSHSession, "log_verbosity=",               m_set_log_verbosity,               1);
+  rb_define_method(rb_cLibSSHSession, "host=",                        m_set_host,                        1);
+  rb_define_method(rb_cLibSSHSession, "user=",                        m_set_user,                        1);
+  rb_define_method(rb_cLibSSHSession, "port=",                        m_set_port,                        1);
+  rb_define_method(rb_cLibSSHSession, "bindaddr=",                    m_set_bindaddr,                    1);
+  rb_define_method(rb_cLibSSHSession, "knownhosts=",                  m_set_knownhosts,                  1);
+  rb_define_method(rb_cLibSSHSession, "timeout=",                     m_set_timeout,                     1);
+  rb_define_method(rb_cLibSSHSession, "timeout_usec=",                m_set_timeout_usec,                1);
+  rb_define_method(rb_cLibSSHSession, "protocol=",                    m_set_protocol,                    1);
+  rb_define_method(rb_cLibSSHSession, "key_exchange=",                m_set_key_exchange,                1);
+  rb_define_method(rb_cLibSSHSession, "hmac_c_s=",                    m_set_hmac_c_s,                    1);
+  rb_define_method(rb_cLibSSHSession, "hmac_s_c=",                    m_set_hmac_s_c,                    1);
+  rb_define_method(rb_cLibSSHSession, "hostkeys=",                    m_set_hostkeys,                    1);
+  rb_define_method(rb_cLibSSHSession, "publickey_accepted_types=",    m_set_publickey_accepted_types,    1);
+  rb_define_method(rb_cLibSSHSession, "compression=",                 m_set_compression,                 1);
+  rb_define_method(rb_cLibSSHSession, "compression_level=",           m_set_compression_level,           1);
+  rb_define_method(rb_cLibSSHSession, "compression_level=",           m_set_compression_level,           1);
+  rb_define_method(rb_cLibSSHSession, "stricthostkeycheck=",          m_set_stricthostkeycheck,          1);
+  rb_define_method(rb_cLibSSHSession, "proxycommand=",                m_set_proxycommand,                1);
+  rb_define_method(rb_cLibSSHSession, "gssapi_client_identity=",      m_set_gssapi_client_identity,      1);
+  rb_define_method(rb_cLibSSHSession, "gssapi_server_identity=",      m_set_gssapi_server_identity,      1);
+  rb_define_method(rb_cLibSSHSession, "gssapi_delegate_credentials=", m_set_gssapi_delegate_credentials, 1);
 
-  rb_define_method(rb_cLibSSHSession, "parse_config",
-                   RUBY_METHOD_FUNC(m_parse_config), -1);
-  rb_define_method(rb_cLibSSHSession, "add_identity",
-                   RUBY_METHOD_FUNC(m_add_identity), 1);
-  rb_define_method(rb_cLibSSHSession, "connect", RUBY_METHOD_FUNC(m_connect),
-                   0);
-  rb_define_method(rb_cLibSSHSession, "disconnect",
-                   RUBY_METHOD_FUNC(m_disconnect), 0);
-  rb_define_method(rb_cLibSSHSession, "server_known",
-                   RUBY_METHOD_FUNC(m_server_known), 0);
-  rb_define_method(rb_cLibSSHSession, "fd", RUBY_METHOD_FUNC(m_fd), 0);
+  rb_define_method(rb_cLibSSHSession, "parse_config", m_parse_config, -1);
+  rb_define_method(rb_cLibSSHSession, "add_identity", m_add_identity,  1);
+  rb_define_method(rb_cLibSSHSession, "connect",      m_connect,       0);
+  rb_define_method(rb_cLibSSHSession, "disconnect",   m_disconnect,    0);
+  rb_define_method(rb_cLibSSHSession, "server_known", m_server_known,  0);
+  rb_define_method(rb_cLibSSHSession, "fd",           m_fd,            0);
 
-  rb_define_method(rb_cLibSSHSession, "userauth_none",
-                   RUBY_METHOD_FUNC(m_userauth_none), 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_password",
-                   RUBY_METHOD_FUNC(m_userauth_password), 1);
-  rb_define_method(rb_cLibSSHSession, "userauth_list",
-                   RUBY_METHOD_FUNC(m_userauth_list), 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_publickey",
-                   RUBY_METHOD_FUNC(m_userauth_publickey), 1);
-  rb_define_method(rb_cLibSSHSession, "userauth_publickey_auto",
-                   RUBY_METHOD_FUNC(m_userauth_publickey_auto), 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint",
-                   RUBY_METHOD_FUNC(m_userauth_kbdint), 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_getnprompts",
-                   RUBY_METHOD_FUNC(m_userauth_kbdint_getnpromts), 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",
-                   RUBY_METHOD_FUNC(m_userauth_kbdint_setanswer), 2);
-  rb_define_method(rb_cLibSSHSession, "get_publickey",
-                   RUBY_METHOD_FUNC(m_get_publickey), 0);
-  rb_define_method(rb_cLibSSHSession, "write_knownhost",
-                   RUBY_METHOD_FUNC(m_write_knownhost), 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_none",               m_userauth_none,              0);
+  rb_define_method(rb_cLibSSHSession, "userauth_password",           m_userauth_password,          1);
+  rb_define_method(rb_cLibSSHSession, "userauth_list",               m_userauth_list,              0);
+  rb_define_method(rb_cLibSSHSession, "userauth_publickey",          m_userauth_publickey,         1);
+  rb_define_method(rb_cLibSSHSession, "userauth_publickey_auto",     m_userauth_publickey_auto,    0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint",             m_userauth_kbdint,            0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_getnprompts", m_userauth_kbdint_getnpromts, 0);
+  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",   m_userauth_kbdint_setanswer,  2);
+  rb_define_method(rb_cLibSSHSession, "get_publickey",               m_get_publickey,              0);
+  rb_define_method(rb_cLibSSHSession, "write_knownhost",             m_write_knownhost,            0);
 }
