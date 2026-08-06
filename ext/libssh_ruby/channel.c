@@ -645,34 +645,24 @@ void Init_libssh_channel(void) {
   rb_cLibSSHChannel = rb_define_class_under(rb_mLibSSH, "Channel", rb_cObject);
   rb_define_alloc_func(rb_cLibSSHChannel, channel_alloc);
 
-  rb_define_method(rb_cLibSSHChannel, "initialize",
-                   RUBY_METHOD_FUNC(m_initialize), 1);
-  rb_define_method(rb_cLibSSHChannel, "open_session",
-                   RUBY_METHOD_FUNC(m_open_session), 0);
-  rb_define_method(rb_cLibSSHChannel, "open_forward",
-                   RUBY_METHOD_FUNC(m_open_forward), 2);
-  rb_define_method(rb_cLibSSHChannel, "close", RUBY_METHOD_FUNC(m_close), 0);
-  rb_define_method(rb_cLibSSHChannel, "request_exec",
-                   RUBY_METHOD_FUNC(m_request_exec), 1);
-  rb_define_method(rb_cLibSSHChannel, "request_pty",
-                   RUBY_METHOD_FUNC(m_request_pty), 0);
-  rb_define_method(rb_cLibSSHChannel, "request_send_signal",
-                   RUBY_METHOD_FUNC(m_request_send_signal), 1);
-  rb_define_method(rb_cLibSSHChannel, "read", RUBY_METHOD_FUNC(m_read), -1);
-  rb_define_method(rb_cLibSSHChannel, "read_nonblocking",
-                   RUBY_METHOD_FUNC(m_read_nonblocking), -1);
-  rb_define_method(rb_cLibSSHChannel, "poll", RUBY_METHOD_FUNC(m_poll), -1);
-  rb_define_method(rb_cLibSSHChannel, "eof?", RUBY_METHOD_FUNC(m_eof_p), 0);
-  rb_define_method(rb_cLibSSHChannel, "closed?", RUBY_METHOD_FUNC(m_closed_p), 0);
-  rb_define_method(rb_cLibSSHChannel, "open?", RUBY_METHOD_FUNC(m_open_p), 0);
-  rb_define_method(rb_cLibSSHChannel, "get_exit_status",
-                   RUBY_METHOD_FUNC(m_get_exit_status), 0);
-  rb_define_method(rb_cLibSSHChannel, "write", RUBY_METHOD_FUNC(m_write), 1);
-  rb_define_method(rb_cLibSSHChannel, "send_eof", RUBY_METHOD_FUNC(m_send_eof),
-                   0);
+  rb_define_method(rb_cLibSSHChannel, "initialize",          m_initialize,           1);
+  rb_define_method(rb_cLibSSHChannel, "open_session",        m_open_session,         0);
+  rb_define_method(rb_cLibSSHChannel, "open_forward",        m_open_forward,         2);
+  rb_define_method(rb_cLibSSHChannel, "close",               m_close,                0);
+  rb_define_method(rb_cLibSSHChannel, "request_exec",        m_request_exec,         1);
+  rb_define_method(rb_cLibSSHChannel, "request_pty",         m_request_pty,          0);
+  rb_define_method(rb_cLibSSHChannel, "request_send_signal", m_request_send_signal,  1);
+  rb_define_method(rb_cLibSSHChannel, "read",                m_read,                -1);
+  rb_define_method(rb_cLibSSHChannel, "read_nonblocking",    m_read_nonblocking,    -1);
+  rb_define_method(rb_cLibSSHChannel, "poll",                m_poll,                -1);
+  rb_define_method(rb_cLibSSHChannel, "eof?",                m_eof_p,                0);
+  rb_define_method(rb_cLibSSHChannel, "closed?",             m_closed_p,             0);
+  rb_define_method(rb_cLibSSHChannel, "open?",               m_open_p,               0);
+  rb_define_method(rb_cLibSSHChannel, "get_exit_status",     m_get_exit_status,      0);
+  rb_define_method(rb_cLibSSHChannel, "write",               m_write,                1);
+  rb_define_method(rb_cLibSSHChannel, "send_eof",            m_send_eof,             0);
 
-  rb_define_singleton_method(rb_cLibSSHChannel, "select",
-                             RUBY_METHOD_FUNC(s_select), 4);
+  rb_define_singleton_method(rb_cLibSSHChannel, "select", s_select, 4);
 
   id_stderr = rb_intern("stderr");
   id_timeout = rb_intern("timeout");

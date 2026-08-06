@@ -430,29 +430,20 @@ void Init_libssh_scp(void) {
   /* @see #pull_request */
   rb_define_const(rb_cLibSSHScp, "REQUEST_EOF", INT2FIX(SSH_SCP_REQUEST_EOF));
 
-  rb_define_method(rb_cLibSSHScp, "initialize", RUBY_METHOD_FUNC(m_initialize),
-                   3);
-  rb_define_method(rb_cLibSSHScp, "init", RUBY_METHOD_FUNC(m_init), 0);
-  rb_define_method(rb_cLibSSHScp, "close", RUBY_METHOD_FUNC(m_close), 0);
-  rb_define_method(rb_cLibSSHScp, "push_file", RUBY_METHOD_FUNC(m_push_file),
-                   3);
-  rb_define_method(rb_cLibSSHScp, "write", RUBY_METHOD_FUNC(m_write), 1);
+  rb_define_method(rb_cLibSSHScp, "initialize", m_initialize, 3);
+  rb_define_method(rb_cLibSSHScp, "init",       m_init,       0);
+  rb_define_method(rb_cLibSSHScp, "close",      m_close,      0);
+  rb_define_method(rb_cLibSSHScp, "push_file",  m_push_file,  3);
+  rb_define_method(rb_cLibSSHScp, "write",      m_write,      1);
 
-  rb_define_method(rb_cLibSSHScp, "pull_request",
-                   RUBY_METHOD_FUNC(m_pull_request), 0);
-  rb_define_method(rb_cLibSSHScp, "request_size",
-                   RUBY_METHOD_FUNC(m_request_size), 0);
-  rb_define_method(rb_cLibSSHScp, "request_filename",
-                   RUBY_METHOD_FUNC(m_request_filename), 0);
-  rb_define_method(rb_cLibSSHScp, "request_permissions",
-                   RUBY_METHOD_FUNC(m_request_permissions), 0);
-  rb_define_method(rb_cLibSSHScp, "accept_request",
-                   RUBY_METHOD_FUNC(m_accept_request), 0);
-  rb_define_method(rb_cLibSSHScp, "deny_request",
-                   RUBY_METHOD_FUNC(m_deny_request), 1);
-  rb_define_method(rb_cLibSSHScp, "read", RUBY_METHOD_FUNC(m_read), 1);
-  rb_define_method(rb_cLibSSHScp, "request_warning",
-                   RUBY_METHOD_FUNC(m_request_warning), 0);
+  rb_define_method(rb_cLibSSHScp, "pull_request",        m_pull_request,        0);
+  rb_define_method(rb_cLibSSHScp, "request_size",        m_request_size,        0);
+  rb_define_method(rb_cLibSSHScp, "request_filename",    m_request_filename,    0);
+  rb_define_method(rb_cLibSSHScp, "request_permissions", m_request_permissions, 0);
+  rb_define_method(rb_cLibSSHScp, "accept_request",      m_accept_request,      0);
+  rb_define_method(rb_cLibSSHScp, "deny_request",        m_deny_request,        1);
+  rb_define_method(rb_cLibSSHScp, "read",                m_read,                1);
+  rb_define_method(rb_cLibSSHScp, "request_warning",     m_request_warning,     0);
 
   id_read = rb_intern("read");
   id_write = rb_intern("write");
