@@ -3,7 +3,7 @@ require 'mkmf'
 if ENV['LIBSSH_CFLAGS']
   $CFLAGS = ENV['LIBSSH_CFLAGS']
 else
-  $CFLAGS << ' -Wall -W -Wno-deprecated-declarations -Wno-missing-field-initializers'
+  $CFLAGS << ' -Wall -W -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-unused-parameter'
 end
 
 unless have_header('libssh/libssh.h')

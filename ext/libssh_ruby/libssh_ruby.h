@@ -8,6 +8,7 @@
 #include <libssh/libssh.h>
 
 extern VALUE rb_mLibSSH;
+extern VALUE rb_mLibSSHC;
 extern VALUE rb_cLibSSHKey;
 
 void Init_libssh_ruby(void);

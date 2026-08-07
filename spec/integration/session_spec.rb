@@ -247,4 +247,22 @@ RSpec.describe LibSSH::Session do
       end
     end
   end
+
+  describe "proxy jump" do
+    before do
+      session.host = SshHelper.host
+      session.port = DockerHelper.port
+      session.user = SshHelper.user
+      session.add_proxy_jump "#{SshHelper.user}@#{SshHelper.host}:#{DockerHelper.port}"
+    end
+
+    specify "when lacking authentication" do
+      expect { session.connect }.to raise_error LibSSH::Error
+    end
+
+    specify "with a bad host" do
+      expect { session.add_proxy_jump ":" }.to raise_error ArgumentError, /Invalid proxy jump/
+      expect { session.add_proxy_jump "," }.to raise_error ArgumentError, /must not contain commas/
+    end
+  end
 end
