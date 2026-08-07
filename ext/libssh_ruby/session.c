@@ -29,9 +29,10 @@ SessionHolder *libssh_ruby_session_holder(VALUE session) {
 }
 
 static VALUE session_alloc(VALUE klass) {
-  SessionHolder *holder = ALLOC(SessionHolder);
-  holder->session = NULL;
-  return TypedData_Wrap_Struct(klass, &session_type, holder);
+  SessionHolder *holder;
+  VALUE object = TypedData_Make_Struct(klass, SessionHolder, &session_type, holder);
+  holder->session = ssh_new();
+  return object;
 }
 
 static void session_mark(RB_UNUSED_VAR(void *arg)) {}
@@ -47,19 +48,6 @@ static void session_free(void *arg) {
 
 static size_t session_memsize(RB_UNUSED_VAR(const void *arg)) {
   return sizeof(SessionHolder);
-}
-
-/*
- * @overload initialize
- * Create a new SSH session.
- * @see http://api.libssh.org/stable/group__libssh__session.html ssh_new
- */
-static VALUE m_initialize(VALUE self) {
-  SessionHolder *holder;
-
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  holder->session = ssh_new();
-  return self;
 }
 
 /*
@@ -468,6 +456,27 @@ static VALUE m_add_identity(VALUE self, VALUE path) {
   return Qnil;
 }
 
+static VALUE c_ssh_options_set(VALUE module, VALUE session, VALUE type, VALUE value) {
+  SessionHolder *holder;
+  TypedData_Get_Struct(session, SessionHolder, &session_type, holder);
+
+  int c_type = NUM2INT(type);
+  const void *c_value;
+
+  switch (c_type) {
+    // const char*
+    case SSH_OPTIONS_PROXYJUMP:
+      c_value = NIL_P(value) ? NULL : StringValueCStr(value);
+      break;
+
+    default:
+      rb_raise(rb_eTypeError, "unsupported option");
+  }
+
+  RAISE_IF_ERROR(ssh_options_set(holder->session, c_type, c_value));
+  return Qnil;
+}
+
 struct nogvl_session_args {
   ssh_session session;
   int rc;
@@ -773,8 +782,6 @@ void Init_libssh_session() {
   I(gssapi_mic);
 #undef I
 
-  rb_define_method(rb_cLibSSHSession, "initialize", m_initialize, 0);
-
   rb_define_method(rb_cLibSSHSession, "log_verbosity=",               m_set_log_verbosity,               1);
   rb_define_method(rb_cLibSSHSession, "host=",                        m_set_host,                        1);
   rb_define_method(rb_cLibSSHSession, "user=",                        m_set_user,                        1);
@@ -815,4 +822,12 @@ void Init_libssh_session() {
   rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",   m_userauth_kbdint_setanswer,  2);
   rb_define_method(rb_cLibSSHSession, "get_publickey",               m_get_publickey,              0);
   rb_define_method(rb_cLibSSHSession, "write_knownhost",             m_write_knownhost,            0);
+
+  /*
+   * LibSSH::C constants and low-level functions.
+   */
+
+  rb_define_const(rb_mLibSSHC, "SSH_OPTIONS_PROXYJUMP", INT2FIX(SSH_OPTIONS_PROXYJUMP));
+
+  rb_define_module_function(rb_mLibSSHC, "ssh_options_set", c_ssh_options_set, 3);
 }
