@@ -21,17 +21,18 @@ void Init_libssh_scp(void);
 
 void libssh_ruby_raise(ssh_session session);
 
-struct SessionHolderStruct {
+// Underlying structure behind LibSSH::Session.
+struct libssh_ruby_session {
   ssh_session session;
 };
-typedef struct SessionHolderStruct SessionHolder;
+
+ssh_session libssh_ruby_get_session(VALUE session);
 
 struct KeyHolderStruct {
   ssh_key key;
 };
 typedef struct KeyHolderStruct KeyHolder;
 
-SessionHolder *libssh_ruby_session_holder(VALUE session);
 KeyHolder *libssh_ruby_key_holder(VALUE key);
 
 #endif /* LIBSSH_RUBY_H */
