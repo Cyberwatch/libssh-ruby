@@ -3,7 +3,7 @@
 
 #define RAISE_IF_ERROR(rc) \
   if ((rc) == SSH_ERROR)   \
-  libssh_ruby_raise(libssh_ruby_session_holder(holder->session)->session)
+  libssh_ruby_raise(libssh_ruby_get_session(holder->session))
 
 VALUE rb_cLibSSHScp;
 
@@ -65,7 +65,6 @@ static size_t scp_memsize(RB_UNUSED_VAR(const void *arg)) {
  */
 static VALUE m_initialize(VALUE self, VALUE session, VALUE mode, VALUE path) {
   ScpHolder *holder;
-  SessionHolder *session_holder;
   char *c_path;
   ID id_mode;
   int c_mode;
@@ -81,8 +80,7 @@ static VALUE m_initialize(VALUE self, VALUE session, VALUE mode, VALUE path) {
   }
   c_path = StringValueCStr(path);
   TypedData_Get_Struct(self, ScpHolder, &scp_type, holder);
-  session_holder = libssh_ruby_session_holder(session);
-  holder->scp = ssh_scp_new(session_holder->session, c_mode, c_path);
+  holder->scp = ssh_scp_new(libssh_ruby_get_session(session), c_mode, c_path);
   holder->session = session;
 
   return self;

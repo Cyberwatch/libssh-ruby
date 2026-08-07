@@ -65,13 +65,9 @@ static size_t channel_memsize(RB_UNUSED_VAR(const void *arg)) {
  */
 static VALUE m_initialize(VALUE self, VALUE session) {
   ChannelHolder *holder;
-  SessionHolder *session_holder;
-
   TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
-  session_holder = libssh_ruby_session_holder(session);
-  holder->channel = ssh_channel_new(session_holder->session);
+  holder->channel = ssh_channel_new(libssh_ruby_get_session(session));
   holder->session = session;
-
   return self;
 }
 

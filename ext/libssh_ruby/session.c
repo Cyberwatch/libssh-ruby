@@ -1,9 +1,6 @@
 #include "libssh_ruby.h"
 #include <ruby/thread.h>
 
-#define RAISE_IF_ERROR(rc) \
-  if ((rc) == SSH_ERROR) libssh_ruby_raise(holder->session)
-
 VALUE rb_cLibSSHSession;
 
 static ID id_none, id_warn, id_info, id_debug, id_trace;
@@ -22,15 +19,19 @@ const rb_data_type_t session_type = {
     RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
-SessionHolder *libssh_ruby_session_holder(VALUE session) {
-  SessionHolder *holder;
-  TypedData_Get_Struct(session, SessionHolder, &session_type, holder);
+static struct libssh_ruby_session* unwrap_session(VALUE session) {
+  struct libssh_ruby_session *holder;
+  TypedData_Get_Struct(session, struct libssh_ruby_session, &session_type, holder);
   return holder;
 }
 
+ssh_session libssh_ruby_get_session(VALUE session) {
+  return unwrap_session(session)->session;
+}
+
 static VALUE session_alloc(VALUE klass) {
-  SessionHolder *holder;
-  VALUE object = TypedData_Make_Struct(klass, SessionHolder, &session_type, holder);
+  struct libssh_ruby_session *holder;
+  VALUE object = TypedData_Make_Struct(klass, struct libssh_ruby_session, &session_type, holder);
   holder->session = ssh_new();
   return object;
 }
@@ -38,7 +39,7 @@ static VALUE session_alloc(VALUE klass) {
 static void session_mark(RB_UNUSED_VAR(void *arg)) {}
 
 static void session_free(void *arg) {
-  SessionHolder *holder = arg;
+  struct libssh_ruby_session *holder = arg;
   if (holder->session != NULL) {
     ssh_free(holder->session);
     holder->session = NULL;
@@ -47,7 +48,7 @@ static void session_free(void *arg) {
 }
 
 static size_t session_memsize(RB_UNUSED_VAR(const void *arg)) {
-  return sizeof(SessionHolder);
+  return sizeof(struct libssh_ruby_session);
 }
 
 /*
@@ -61,7 +62,6 @@ static size_t session_memsize(RB_UNUSED_VAR(const void *arg)) {
 static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   ID id_verbosity;
   int c_verbosity;
-  SessionHolder *holder;
 
   Check_Type(verbosity, T_SYMBOL);
   id_verbosity = SYM2ID(verbosity);
@@ -80,18 +80,16 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
     rb_raise(rb_eArgError, "invalid verbosity: %" PRIsVALUE, verbosity);
   }
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, SSH_OPTIONS_LOG_VERBOSITY,
-                                 &c_verbosity));
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &c_verbosity) == SSH_ERROR)
+    libssh_ruby_raise(session);
 
   return Qnil;
 }
 
 static VALUE set_string_option(VALUE self, enum ssh_options_e type, const char* name, VALUE str) {
-  SessionHolder *holder;
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
   const void* value = NIL_P(str) ? NULL : StringValueCStr(str);
-  if (ssh_options_set(holder->session, type, value) < 0)
+  if (ssh_options_set(libssh_ruby_get_session(self), type, value) < 0)
     rb_raise(rb_eArgError, "Invalid %s: %+" PRIsVALUE, name, str);
   return Qnil;
 }
@@ -120,13 +118,13 @@ static VALUE m_set_user(VALUE self, VALUE user) {
 }
 
 static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
-  SessionHolder *holder;
-  int j;
-
   Check_Type(i, T_FIXNUM);
-  j = FIX2INT(i);
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, type, &j));
+  int j = FIX2INT(i);
+
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_options_set(session, type, &j) == SSH_ERROR)
+    libssh_ruby_raise(session);
+
   return Qnil;
 }
 
@@ -167,13 +165,13 @@ static VALUE m_set_knownhosts(VALUE self, VALUE path) {
 }
 
 static VALUE set_long_option(VALUE self, enum ssh_options_e type, VALUE i) {
-  SessionHolder *holder;
-  long j;
-
   Check_Type(i, T_FIXNUM);
-  j = FIX2LONG(i);
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, type, &j));
+  long j = FIX2LONG(i);
+
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_options_set(session, type, &j) == SSH_ERROR)
+    libssh_ruby_raise(session);
+
   return Qnil;
 }
 
@@ -210,7 +208,6 @@ static VALUE m_set_timeout_usec(VALUE self, VALUE usec) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_SSH1)
  */
 static VALUE m_set_protocol(VALUE self, VALUE protocols) {
-  SessionHolder *holder;
   VALUE protocol;
   int i, ssh1 = 0, ssh2 = 0;
 
@@ -231,9 +228,11 @@ static VALUE m_set_protocol(VALUE self, VALUE protocols) {
     }
   }
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, SSH_OPTIONS_SSH1, &ssh1));
-  RAISE_IF_ERROR(ssh_options_set(holder->session, SSH_OPTIONS_SSH2, &ssh2));
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_options_set(session, SSH_OPTIONS_SSH1, &ssh1) == SSH_ERROR)
+    libssh_ruby_raise(session);
+  if (ssh_options_set(session, SSH_OPTIONS_SSH2, &ssh2) == SSH_ERROR)
+    libssh_ruby_raise(session);
 
   return Qnil;
 }
@@ -318,7 +317,6 @@ static VALUE m_set_publickey_accepted_types(VALUE self, VALUE publickey_types) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_COMPRESSION)
  */
 static VALUE m_set_compression(VALUE self, VALUE compression) {
-  SessionHolder *holder;
   if (compression == Qtrue || compression == Qfalse) {
     const char *val;
     if (compression == Qtrue) {
@@ -327,9 +325,9 @@ static VALUE m_set_compression(VALUE self, VALUE compression) {
       val = "no";
     }
 
-    TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-    RAISE_IF_ERROR(
-        ssh_options_set(holder->session, SSH_OPTIONS_COMPRESSION, val));
+    ssh_session session = libssh_ruby_get_session(self);
+    if (ssh_options_set(session, SSH_OPTIONS_COMPRESSION, val) == SSH_ERROR)
+      libssh_ruby_raise(session);
 
     return Qnil;
   } else {
@@ -419,7 +417,6 @@ static VALUE m_set_gssapi_delegate_credentials(VALUE self, VALUE enable) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_parse_config
  */
 static VALUE m_parse_config(int argc, VALUE *argv, VALUE self) {
-  SessionHolder *holder;
   VALUE path;
   char *c_path;
 
@@ -431,8 +428,7 @@ static VALUE m_parse_config(int argc, VALUE *argv, VALUE self) {
     c_path = StringValueCStr(path);
   }
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  if (ssh_options_parse_config(holder->session, c_path) == 0) {
+  if (ssh_options_parse_config(libssh_ruby_get_session(self), c_path) == 0) {
     return Qtrue;
   } else {
     return Qfalse;
@@ -447,19 +443,15 @@ static VALUE m_parse_config(int argc, VALUE *argv, VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_ADD_IDENTITY)
  */
 static VALUE m_add_identity(VALUE self, VALUE path) {
-  SessionHolder *holder;
-
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  RAISE_IF_ERROR(ssh_options_set(holder->session, SSH_OPTIONS_ADD_IDENTITY,
-                                 StringValueCStr(path)));
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_options_set(session, SSH_OPTIONS_ADD_IDENTITY, StringValueCStr(path)) == SSH_ERROR)
+    libssh_ruby_raise(session);
 
   return Qnil;
 }
 
 static VALUE c_ssh_options_set(VALUE module, VALUE session, VALUE type, VALUE value) {
-  SessionHolder *holder;
-  TypedData_Get_Struct(session, SessionHolder, &session_type, holder);
-
+  ssh_session c_session = libssh_ruby_get_session(session);
   int c_type = NUM2INT(type);
   const void *c_value;
 
@@ -473,7 +465,9 @@ static VALUE c_ssh_options_set(VALUE module, VALUE session, VALUE type, VALUE va
       rb_raise(rb_eTypeError, "unsupported option");
   }
 
-  RAISE_IF_ERROR(ssh_options_set(holder->session, c_type, c_value));
+  if (ssh_options_set(c_session, c_type, c_value) == SSH_ERROR)
+    libssh_ruby_raise(c_session);
+
   return Qnil;
 }
 
@@ -495,13 +489,11 @@ static void *nogvl_connect(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_connect
  */
 static VALUE m_connect(VALUE self) {
-  SessionHolder *holder;
   struct nogvl_session_args args;
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  args.session = holder->session;
+  args.session = libssh_ruby_get_session(self);
   rb_thread_call_without_gvl(nogvl_connect, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
 
   return Qnil;
 }
@@ -521,11 +513,9 @@ static void *nogvl_disconnect(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_disconnect
  */
 static VALUE m_disconnect(VALUE self) {
-  SessionHolder *holder;
   struct nogvl_session_args args;
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  args.session = holder->session;
+  args.session = libssh_ruby_get_session(self);
   rb_thread_call_without_gvl(nogvl_disconnect, &args, RUBY_UBF_IO, NULL);
 
   return Qnil;
@@ -538,12 +528,9 @@ static VALUE m_disconnect(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_is_server_known
  */
 static VALUE m_server_known(VALUE self) {
-  SessionHolder *holder;
-  int rc;
-
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  rc = ssh_is_server_known(holder->session);
-  RAISE_IF_ERROR(rc);
+  ssh_session session = libssh_ruby_get_session(self);
+  int rc = ssh_is_server_known(session);
+  if (rc == SSH_ERROR) libssh_ruby_raise(session);
   return INT2FIX(rc);
 }
 
@@ -555,9 +542,7 @@ static VALUE m_server_known(VALUE self) {
  * @see http://api.libssh.org/stable/group__libssh__session.html ssh_get_fd
  */
 static VALUE m_fd(VALUE self) {
-  SessionHolder *holder;
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  return INT2FIX(ssh_get_fd(holder->session));
+  return INT2FIX(ssh_get_fd(libssh_ruby_get_session(self)));
 }
 
 /*
@@ -567,12 +552,9 @@ static VALUE m_fd(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_none
  */
 static VALUE m_userauth_none(VALUE self) {
-  SessionHolder *holder;
-  int rc;
-
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  rc = ssh_userauth_none(holder->session, NULL);
-  RAISE_IF_ERROR(rc);
+  ssh_session session = libssh_ruby_get_session(self);
+  int rc = ssh_userauth_none(session, NULL);
+  if (rc == SSH_ERROR) libssh_ruby_raise(session);
   return INT2FIX(rc);
 }
 
@@ -584,12 +566,9 @@ static VALUE m_userauth_none(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_password
  */
 static VALUE m_userauth_password(VALUE self, VALUE password) {
-  SessionHolder *holder;
-  int rc;
-
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  rc = ssh_userauth_password(holder->session, NULL, StringValueCStr(password));
-  RAISE_IF_ERROR(rc);
+  ssh_session session = libssh_ruby_get_session(self);
+  int rc = ssh_userauth_password(session, NULL, StringValueCStr(password));
+  if (rc == SSH_ERROR) libssh_ruby_raise(session);
   return INT2FIX(rc);
 }
 
@@ -600,15 +579,11 @@ static VALUE m_userauth_password(VALUE self, VALUE password) {
  *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_list
  */
 static VALUE m_userauth_list(VALUE self) {
-  SessionHolder *holder;
-  int list;
-  VALUE ary;
+  ssh_session session = libssh_ruby_get_session(self);
+  int list = ssh_userauth_list(session, NULL);
+  if (list == SSH_ERROR) libssh_ruby_raise(session);
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  list = ssh_userauth_list(holder->session, NULL);
-  RAISE_IF_ERROR(list);
-
-  ary = rb_ary_new();
+  VALUE ary = rb_ary_new();
   if (list & SSH_AUTH_METHOD_NONE) {
     rb_ary_push(ary, ID2SYM(id_none));
   }
@@ -650,14 +625,15 @@ static void *nogvl_userauth_publickey(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_publickey
  */
 static VALUE m_userauth_publickey(VALUE self, VALUE private_key) {
-  SessionHolder *holder = libssh_ruby_session_holder(self);
   KeyHolder *key_holder = libssh_ruby_key_holder(private_key);
 
   struct nogvl_userauth_publickey_args args;
-  args.session = holder->session;
+  args.session = libssh_ruby_get_session(self);
   args.privkey = key_holder->key;
+
   rb_thread_call_without_gvl(nogvl_userauth_publickey, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
+
   return INT2FIX(args.rc);
 }
 
@@ -674,14 +650,12 @@ static void *nogvl_userauth_publickey_auto(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_publickey_auto
  */
 static VALUE m_userauth_publickey_auto(VALUE self) {
-  SessionHolder *holder;
   struct nogvl_session_args args;
+  args.session = libssh_ruby_get_session(self);
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  args.session = holder->session;
-  rb_thread_call_without_gvl(nogvl_userauth_publickey_auto, &args, RUBY_UBF_IO,
-                             NULL);
-  RAISE_IF_ERROR(args.rc);
+  rb_thread_call_without_gvl(nogvl_userauth_publickey_auto, &args, RUBY_UBF_IO, NULL);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
+
   return INT2FIX(args.rc);
 }
 
@@ -692,9 +666,9 @@ static VALUE m_userauth_publickey_auto(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint
  */
 static VALUE m_userauth_kbdint(VALUE self) {
-  SessionHolder *holder = libssh_ruby_session_holder(self);
-  int rc = ssh_userauth_kbdint(holder->session, NULL, NULL);
-  RAISE_IF_ERROR(rc);
+  ssh_session session = libssh_ruby_get_session(self);
+  int rc = ssh_userauth_kbdint(session, NULL, NULL);
+  if (rc == SSH_ERROR) libssh_ruby_raise(session);
   return INT2FIX(rc);
 }
 
@@ -705,8 +679,7 @@ static VALUE m_userauth_kbdint(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_getnprompts
  */
 static VALUE m_userauth_kbdint_getnpromts(VALUE self) {
-  SessionHolder *holder = libssh_ruby_session_holder(self);
-  int n = ssh_userauth_kbdint_getnprompts(holder->session);
+  int n = ssh_userauth_kbdint_getnprompts(libssh_ruby_get_session(self));
   return INT2FIX(n);
 }
 
@@ -719,9 +692,9 @@ static VALUE m_userauth_kbdint_getnpromts(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_setanswer
  */
 static VALUE m_userauth_kbdint_setanswer(VALUE self, VALUE i, VALUE answer) {
-  SessionHolder *holder = libssh_ruby_session_holder(self);
-  int rc = ssh_userauth_kbdint_setanswer(holder->session, FIX2INT(i), StringValueCStr(answer));
-  RAISE_IF_ERROR(rc);
+  ssh_session session = libssh_ruby_get_session(self);
+  int rc = ssh_userauth_kbdint_setanswer(libssh_ruby_get_session(self), FIX2INT(i), StringValueCStr(answer));
+  if (rc == SSH_ERROR) libssh_ruby_raise(session);
   return Qnil;
 }
 
@@ -732,14 +705,13 @@ static VALUE m_userauth_kbdint_setanswer(VALUE self, VALUE i, VALUE answer) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_get_publickey
  */
 static VALUE m_get_publickey(VALUE self) {
-  SessionHolder *holder;
-  KeyHolder *key_holder;
-  VALUE key;
+  ssh_session session = libssh_ruby_get_session(self);
+  VALUE key = rb_obj_alloc(rb_cLibSSHKey);
+  KeyHolder *key_holder = libssh_ruby_key_holder(key);
 
-  TypedData_Get_Struct(self, SessionHolder, &session_type, holder);
-  key = rb_obj_alloc(rb_cLibSSHKey);
-  key_holder = libssh_ruby_key_holder(key);
-  RAISE_IF_ERROR(ssh_get_publickey(holder->session, &key_holder->key));
+  if (ssh_get_publickey(session, &key_holder->key) == SSH_ERROR)
+    libssh_ruby_raise(session);
+
   return key;
 }
 
@@ -750,10 +722,9 @@ static VALUE m_get_publickey(VALUE self) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_write_knownhost
  */
 static VALUE m_write_knownhost(VALUE self) {
-  SessionHolder *holder;
-
-  holder = libssh_ruby_session_holder(self);
-  RAISE_IF_ERROR(ssh_write_knownhost(holder->session));
+  ssh_session session = libssh_ruby_get_session(self);
+  if (ssh_write_knownhost(session) != SSH_ERROR)
+    libssh_ruby_raise(session);
   return Qnil;
 }
 
