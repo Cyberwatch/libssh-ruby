@@ -12,6 +12,7 @@ module DockerHelper
       -e PASSWORD_ACCESS=true \
       -e USER_NAME=alice \
       -e USER_PASSWORD=alice \
+      -e LOG_STDOUT=true \
       -v ./spec:/spec:ro \
       -v ./spec/sshd_config:/config/sshd/sshd_config.d/99-override.conf:ro \
       --publish-all \
@@ -33,6 +34,7 @@ module DockerHelper
     end
 
     def stop
+      system("docker", "logs", @container_id, out: "spec/docker.log", err: [:child, :out])
       unless system('docker', 'stop', '-t', '0', @container_id, out: File::NULL)
         warn "Cannot stop Docker container #{@container_id}"
       end
