@@ -2,7 +2,6 @@
 #include <libssh/callbacks.h>
 
 VALUE rb_mLibSSH;
-VALUE rb_mLibSSHC;
 
 /*
  * @overload version(req_version = 0)
@@ -32,7 +31,6 @@ void Init_libssh_ruby(void) {
   ssh_init();
 
   rb_mLibSSH = rb_define_module("LibSSH");
-  rb_mLibSSHC = rb_define_module_under(rb_mLibSSH, "C");
 
   /* @see Session#server_known */
   rb_define_const(rb_mLibSSH, "SERVER_KNOWN_OK", INT2FIX(SSH_SERVER_KNOWN_OK));

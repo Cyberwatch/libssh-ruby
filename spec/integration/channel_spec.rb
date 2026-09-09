@@ -1,33 +1,32 @@
 require 'spec_helper'
 
 RSpec.describe LibSSH::Channel do
-  let(:session) { LibSSH::Session.new }
-  let(:channel) { described_class.new(session) }
-
-  before do
-    session.host = SshHelper.host
-    session.port = DockerHelper.port
-    session.user = SshHelper.user
-    session.add_identity(SshHelper.identity_path)
+  let(:session) do
+    @session = LibSSH::Session.new
+    @session.host = SshHelper.host
+    @session.port = DockerHelper.port
+    @session.user = SshHelper.user
+    @session.connect
+    @session.userauth_password(SshHelper.password)
+    @session
   end
 
+  let(:channel) { described_class.new(session) }
+
   after do
-    session.disconnect
+    @session&.disconnect
+    @session = nil
   end
 
   describe '#open_session' do
     context 'without connected session' do
       it 'raises an error' do
+        channel = described_class.new(LibSSH::Session.new)
         expect { channel.open_session { :ng } }.to raise_error(ArgumentError)
       end
     end
 
     context 'with valid condition' do
-      before do
-        session.connect
-        session.userauth_publickey_auto
-      end
-
       it 'returns the block result' do
         expect(channel.open_session { :ok }).to eq(:ok)
       end
@@ -35,11 +34,6 @@ RSpec.describe LibSSH::Channel do
   end
 
   describe '#request_exec' do
-    before do
-      session.connect
-      session.userauth_publickey_auto
-    end
-
     context 'with valid condition' do
       it 'succeeds' do
         channel.open_session do
@@ -67,11 +61,6 @@ RSpec.describe LibSSH::Channel do
   end
 
   describe '#request_send_signal' do
-    before do
-      session.connect
-      session.userauth_publickey_auto
-    end
-
     it 'sends a signal to the remote process' do
       before = Time.now
       channel.open_session do
@@ -85,11 +74,6 @@ RSpec.describe LibSSH::Channel do
   end
 
   describe '#read_nonblocking' do
-    before do
-      session.connect
-      session.userauth_publickey_auto
-    end
-
     context 'with valid condition' do
       it 'returns stdout' do
         channel.open_session do
