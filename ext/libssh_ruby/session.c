@@ -457,7 +457,7 @@ static VALUE m_userauth_kbdint_setanswer(VALUE self, VALUE i, VALUE answer) {
  * @see http://api.libssh.org/stable/group__libssh__session.html
  */
 
-void Init_libssh_session() {
+void Init_libssh_session(void) {
   rb_cLibSSHSession = rb_define_class_under(rb_mLibSSH, "Session", rb_cObject);
   rb_define_alloc_func(rb_cLibSSHSession, session_alloc);
 
