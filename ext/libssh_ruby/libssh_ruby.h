@@ -19,7 +19,7 @@ void Init_libssh_key(void);
 void Init_libssh_pki(void);
 void Init_libssh_scp(void);
 
-void libssh_ruby_raise(ssh_session session);
+[[noreturn]] void libssh_ruby_raise(ssh_session session);
 
 // Underlying structure behind LibSSH::Session.
 struct libssh_ruby_session {

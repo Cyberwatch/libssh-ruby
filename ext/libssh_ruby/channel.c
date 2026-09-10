@@ -57,6 +57,12 @@ static size_t channel_memsize(RB_UNUSED_VAR(const void *arg)) {
   return sizeof(ChannelHolder);
 }
 
+static ssh_channel get_ssh_channel(VALUE channel) {
+  ChannelHolder *holder;
+  TypedData_Get_Struct(channel, ChannelHolder, &channel_type, holder);
+  return holder->channel;
+}
+
 /* @overload initialize(session)
  *  Initialize a channel from the session.
  *  @param [Session] session
@@ -470,9 +476,15 @@ static VALUE m_poll(int argc, VALUE *argv, VALUE self) {
   }
 }
 
+struct nogvl_get_exit_status_args {
+  ssh_channel channel;
+  uint32_t pexit_code;
+  int rc;
+};
+
 static void *nogvl_get_exit_status(void *ptr) {
-  struct nogvl_channel_args *args = ptr;
-  args->rc = ssh_channel_get_exit_status(args->channel);
+  struct nogvl_get_exit_status_args *args = ptr;
+  args->rc = ssh_channel_get_exit_state(args->channel, &args->pexit_code, NULL, NULL);
   return NULL;
 }
 
@@ -487,16 +499,13 @@ static void *nogvl_get_exit_status(void *ptr) {
  *    ssh_channel_get_exit_status
  */
 static VALUE m_get_exit_status(VALUE self) {
-  ChannelHolder *holder;
-  struct nogvl_channel_args args;
-
-  TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
-  args.channel = holder->channel;
+  struct nogvl_get_exit_status_args args = { .channel = get_ssh_channel(self) };
   rb_thread_call_without_gvl(nogvl_get_exit_status, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == -1) {
-    return Qnil;
-  } else {
-    return INT2FIX(args.rc);
+
+  switch (args.rc) {
+    case SSH_ERROR: libssh_ruby_raise(ssh_channel_get_session(args.channel));
+    case SSH_OK:    return INT2FIX(args.pexit_code);
+    default:        return Qnil; // SSH_AGAIN
   }
 }
 
