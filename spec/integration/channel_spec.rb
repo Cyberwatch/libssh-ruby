@@ -66,7 +66,7 @@ RSpec.describe LibSSH::Channel do
       channel.open_session do
         channel.request_exec('sleep 2')
         channel.request_send_signal('HUP')
-        LibSSH::Channel.select([channel], [], [], 1) until channel.eof?
+        channel.wait(timeout: 1)
       end
       after = Time.now
       expect(after - before).to be < 1
