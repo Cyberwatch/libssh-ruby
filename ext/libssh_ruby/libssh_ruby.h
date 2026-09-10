@@ -17,7 +17,6 @@ void Init_libssh_channel(void);
 void Init_libssh_error(void);
 void Init_libssh_key(void);
 void Init_libssh_pki(void);
-void Init_libssh_scp(void);
 
 void libssh_ruby_raise(ssh_session session);
 
