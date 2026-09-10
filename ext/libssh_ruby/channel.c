@@ -568,73 +568,32 @@ static VALUE m_send_eof(VALUE self) {
   return Qnil;
 }
 
-struct nogvl_select_args {
-  ssh_channel *read_channels, *write_channels, *except_channels;
+struct nogvl_wait_timeout_args {
+  ssh_channel channel;
   struct timeval *timeout;
   int rc;
 };
 
-static void *nogvl_select(void *ptr) {
-  struct nogvl_select_args *args = ptr;
-  args->rc = ssh_channel_select(args->read_channels, args->write_channels,
-                                args->except_channels, args->timeout);
+static void* nogvl_wait_timeout(void *data) {
+  struct nogvl_wait_timeout_args *args = data;
+  ssh_channel channels[2] = { args->channel, NULL };
+  ssh_channel outchannels[2];
+  fd_set readfds;
+  args->rc = ssh_select(channels, outchannels, /*maxfd*/ 0, &readfds, args->timeout);
   return NULL;
 }
 
-static void set_select_channels(ssh_channel **c_channels, VALUE rb_channels) {
-  long i, len;
+static VALUE m_wait_timeout(VALUE self, VALUE timeout) {
+  struct timeval timeout_tv = { .tv_usec = 0 };
+  struct nogvl_wait_timeout_args args = { .channel = get_ssh_channel(self), .timeout = NULL };
 
-  Check_Type(rb_channels, T_ARRAY);
-  len = RARRAY_LEN(rb_channels);
-  if (len == 0) {
-    *c_channels = NULL;
-  } else {
-    for (i = 0; i < len; i++) {
-      Check_TypedStruct(RARRAY_AREF(rb_channels, i), &channel_type);
-    }
-    *c_channels = ALLOC_N(ssh_channel, len+1);
-    for (i = 0; i < len; i++) {
-      ChannelHolder *holder;
-      TypedData_Get_Struct(RARRAY_AREF(rb_channels, i), ChannelHolder,
-          &channel_type, holder);
-      (*c_channels)[i] = holder->channel;
-    }
-    (*c_channels)[len] = NULL;
+  if (!NIL_P(timeout)) {
+    timeout_tv.tv_sec = NUM2INT(timeout);
+    args.timeout = &timeout_tv;
   }
-}
 
-/*
- * @overload select(read_channels, write_channels, except_channels, timeout)
- *  Act like the standard select(2) on channels.
- *  @param [Array<Channel>] read_channels
- *  @param [Array<Channel>] write_channels
- *  @param [Array<Channel>] except_channels
- *  @param [Fixnum, nil] timeout timeout in seconds.
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__channel.html
- *    ssh_channel_select
- */
-static VALUE s_select(RB_UNUSED_VAR(VALUE self), VALUE read_channels,
-                      VALUE write_channels, VALUE except_channels,
-                      VALUE timeout) {
-  struct nogvl_select_args args;
-  struct timeval tv;
-
-  if (NIL_P(timeout)) {
-    args.timeout = NULL;
-  } else {
-    Check_Type(timeout, T_FIXNUM);
-    tv.tv_sec = FIX2INT(timeout);
-    tv.tv_usec = 0;
-    args.timeout = &tv;
-  }
-  set_select_channels(&args.read_channels, read_channels);
-  set_select_channels(&args.write_channels, write_channels);
-  set_select_channels(&args.except_channels, except_channels);
-  rb_thread_call_without_gvl(nogvl_select, &args, RUBY_UBF_IO, NULL);
-  ruby_xfree(args.read_channels);
-  ruby_xfree(args.write_channels);
-  ruby_xfree(args.except_channels);
+  rb_thread_call_without_gvl(nogvl_wait_timeout, &args, RUBY_UBF_IO, NULL);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(ssh_channel_get_session(args.channel));
   return Qnil;
 }
 
@@ -667,7 +626,7 @@ void Init_libssh_channel(void) {
   rb_define_method(rb_cLibSSHChannel, "write",               m_write,                1);
   rb_define_method(rb_cLibSSHChannel, "send_eof",            m_send_eof,             0);
 
-  rb_define_singleton_method(rb_cLibSSHChannel, "select", s_select, 4);
+  rb_define_private_method(rb_cLibSSHChannel, "wait_timeout", m_wait_timeout, 1);
 
   id_stderr = rb_intern("stderr");
   id_timeout = rb_intern("timeout");
