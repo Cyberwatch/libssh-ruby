@@ -77,6 +77,7 @@ void Init_libssh_ruby(void) {
   rb_define_singleton_method(rb_mLibSSH, "version", m_version,
                              -1);
 
+  Init_libssh_options();
   Init_libssh_session();
   Init_libssh_channel();
   Init_libssh_error();

@@ -1,60 +1,46 @@
 require 'spec_helper'
 
 RSpec.describe LibSSH::Session do
-  let(:session) { described_class.new }
+  def session
+    @session ||= build
+  end
+
+  def build(options = {})
+    @session = described_class.new(
+      host: SshHelper.host,
+      port: DockerHelper.port,
+      user: SshHelper.user,
+      **options,
+    )
+  end
 
   after do
-    session.disconnect
+    @session&.disconnect
+    @session = nil
   end
 
-  describe '#user=' do
-    it 'is nullable' do
-      session.user = nil
+  describe "#initialize" do
+    specify "user is nullable" do
+      expect { build(user: nil) }.not_to raise_error
     end
-  end
 
-  describe '#host=' do
-    it 'raises error on bad host' do
-      expect { session.host = nil }.to raise_error ArgumentError, 'Invalid host: nil'
-      expect { session.host = "foo_bar" }.to raise_error ArgumentError, 'Invalid host: "foo_bar"'
+    it "raises an exception on bad host" do
+      expect { build(host: "foo_bar") }.to raise_error ArgumentError, 'Invalid host: foo_bar'
     end
   end
 
   describe '#connect' do
-    context 'without hostname' do
-      it 'raises an error' do
-        expect { session.connect }.to raise_error(LibSSH::Error)
-      end
+    specify "host is required" do
+      expect { build(host: nil).connect }.to raise_error LibSSH::Error
     end
 
-    context 'with wrong port number' do
-      before do
-        session.host = SshHelper.host
-        session.port = DockerHelper.port + 1
-      end
-
-      it 'raises an error' do
-        expect { session.connect }.to raise_error(LibSSH::Error)
-      end
-    end
-
-    context 'with valid condition' do
-      before do
-        session.host = SshHelper.host
-        session.port = DockerHelper.port
-      end
-
-      it 'succeeds' do
-        expect(session.connect).to be_nil
-      end
+    it "raises an exception on closed port" do
+      expect { build(port: 2).connect }.to raise_error LibSSH::Error
     end
   end
 
   describe '#userauth_list' do
     before do
-      session.host = SshHelper.host
-      session.port = DockerHelper.port
-      session.user = SshHelper.user
       session.connect
     end
 
@@ -77,9 +63,6 @@ RSpec.describe LibSSH::Session do
 
   describe '#userauth_publickey' do
     before do
-      session.host = SshHelper.host
-      session.port = DockerHelper.port
-      session.user = SshHelper.user
       session.connect
     end
 
@@ -91,12 +74,6 @@ RSpec.describe LibSSH::Session do
   end
 
   describe '#userauth_publickey_auto' do
-    before do
-      session.host = SshHelper.host
-      session.port = DockerHelper.port
-      session.user = SshHelper.user
-    end
-
     context 'without valid private key' do
       it 'is denied' do
         session.connect
@@ -107,9 +84,6 @@ RSpec.describe LibSSH::Session do
 
   describe '#userauth_password' do
     before do
-      session.host = SshHelper.host
-      session.port = DockerHelper.port
-      session.user = SshHelper.user
       session.connect
     end
 
@@ -128,9 +102,6 @@ RSpec.describe LibSSH::Session do
 
   describe '#userauth_kbdint' do
     before do
-      session.host = SshHelper.host
-      session.port = DockerHelper.port
-      session.user = SshHelper.user
       session.connect
     end
 

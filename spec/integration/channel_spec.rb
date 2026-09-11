@@ -2,10 +2,11 @@ require 'spec_helper'
 
 RSpec.describe LibSSH::Channel do
   let(:session) do
-    @session = LibSSH::Session.new
-    @session.host = SshHelper.host
-    @session.port = DockerHelper.port
-    @session.user = SshHelper.user
+    @session = LibSSH::Session.new(
+      host: SshHelper.host,
+      port: DockerHelper.port,
+      user: SshHelper.user,
+    )
     @session.connect
     @session.userauth_password(SshHelper.password)
     @session
@@ -21,7 +22,7 @@ RSpec.describe LibSSH::Channel do
   describe '#open_session' do
     context 'without connected session' do
       it 'raises an error' do
-        channel = described_class.new(LibSSH::Session.new)
+        channel = described_class.new(LibSSH::Session.new(host: SshHelper.host))
         expect { channel.open_session { :ng } }.to raise_error(ArgumentError)
       end
     end
