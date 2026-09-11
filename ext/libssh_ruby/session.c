@@ -40,10 +40,8 @@ static void session_mark(RB_UNUSED_VAR(void *arg)) {}
 
 static void session_free(void *arg) {
   struct libssh_ruby_session *holder = arg;
-  if (holder->session != NULL) {
-    ssh_free(holder->session);
-    holder->session = NULL;
-  }
+  ssh_free(holder->session);
+  libssh_ruby_free_options(holder->options);
   ruby_xfree(holder);
 }
 
@@ -94,29 +92,6 @@ static VALUE set_string_option(VALUE self, enum ssh_options_e type, const char* 
   return Qnil;
 }
 
-/*
- * @overload host=(host)
- *  Set the hostname or IP address to connect to.
- *  @param [String] host
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HOST)
- */
-static VALUE m_set_host(VALUE self, VALUE host) {
-  return set_string_option(self, SSH_OPTIONS_HOST, "host", host);
-}
-
-/*
- * @overload user=(user)
- *  Set the username for authentication.
- *  @since 0.2.0
- *  @param [String] user
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_USER)
- */
-static VALUE m_set_user(VALUE self, VALUE user) {
-  return set_string_option(self, SSH_OPTIONS_USER, "user", user);
-}
-
 static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
   Check_Type(i, T_FIXNUM);
   int j = FIX2INT(i);
@@ -126,18 +101,6 @@ static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
     libssh_ruby_raise(session);
 
   return Qnil;
-}
-
-/*
- * @overload port=(port)
- *  Set the port to connect to.
- *  @since 0.2.0
- *  @param [Fixnum] port
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_PORT)
- */
-static VALUE m_set_port(VALUE self, VALUE port) {
-  return set_int_option(self, SSH_OPTIONS_PORT, port);
 }
 
 static VALUE set_long_option(VALUE self, enum ssh_options_e type, VALUE i) {
@@ -244,6 +207,26 @@ static VALUE m_set_publickey_accepted_types(VALUE self, VALUE publickey_types) {
 static VALUE m_set_stricthostkeycheck(VALUE self, VALUE enable) {
   return set_int_option(self, SSH_OPTIONS_STRICTHOSTKEYCHECK,
                         INT2FIX(RTEST(enable) ? 1 : 0));
+}
+
+// LibSSH::Session#set_options(LibSSH::Options)
+static VALUE m_set_options(VALUE self, VALUE value) {
+  struct libssh_ruby_options **options = &unwrap_session(self)->options;
+  if (*options) rb_raise(rb_eArgError, "Cannot set options twice.");
+  *options = libssh_ruby_clone_options(value);
+
+  ssh_session session = libssh_ruby_get_session(self);
+  char *error;
+  int rc = libssh_ruby_apply_options(*options, session, &error);
+  if (error) {
+    VALUE exception_argv[1] = { rb_str_new_cstr(error) };
+    free(error);
+    rb_exc_raise(rb_class_new_instance(1, exception_argv, rb_eArgError));
+  } else if (rc < 0) {
+    libssh_ruby_raise(session);
+  }
+
+  return Qnil;
 }
 
 struct nogvl_session_args {
@@ -475,9 +458,6 @@ void Init_libssh_session(void) {
 #undef I
 
   rb_define_method(rb_cLibSSHSession, "log_verbosity=",               m_set_log_verbosity,               1);
-  rb_define_method(rb_cLibSSHSession, "host=",                        m_set_host,                        1);
-  rb_define_method(rb_cLibSSHSession, "user=",                        m_set_user,                        1);
-  rb_define_method(rb_cLibSSHSession, "port=",                        m_set_port,                        1);
   rb_define_method(rb_cLibSSHSession, "timeout=",                     m_set_timeout,                     1);
   rb_define_method(rb_cLibSSHSession, "key_exchange=",                m_set_key_exchange,                1);
   rb_define_method(rb_cLibSSHSession, "hmac_c_s=",                    m_set_hmac_c_s,                    1);
@@ -497,4 +477,6 @@ void Init_libssh_session(void) {
   rb_define_method(rb_cLibSSHSession, "userauth_kbdint",             m_userauth_kbdint,            0);
   rb_define_method(rb_cLibSSHSession, "userauth_kbdint_getnprompts", m_userauth_kbdint_getnpromts, 0);
   rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",   m_userauth_kbdint_setanswer,  2);
+
+  rb_define_private_method(rb_cLibSSHSession, "set_options", m_set_options, 1);
 }
