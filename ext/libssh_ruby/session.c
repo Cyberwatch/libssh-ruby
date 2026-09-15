@@ -85,130 +85,6 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   return Qnil;
 }
 
-static VALUE set_string_option(VALUE self, enum ssh_options_e type, const char* name, VALUE str) {
-  const void* value = NIL_P(str) ? NULL : StringValueCStr(str);
-  if (ssh_options_set(libssh_ruby_get_session(self), type, value) < 0)
-    rb_raise(rb_eArgError, "Invalid %s: %+" PRIsVALUE, name, str);
-  return Qnil;
-}
-
-static VALUE set_int_option(VALUE self, enum ssh_options_e type, VALUE i) {
-  Check_Type(i, T_FIXNUM);
-  int j = FIX2INT(i);
-
-  ssh_session session = libssh_ruby_get_session(self);
-  if (ssh_options_set(session, type, &j) == SSH_ERROR)
-    libssh_ruby_raise(session);
-
-  return Qnil;
-}
-
-static VALUE set_long_option(VALUE self, enum ssh_options_e type, VALUE i) {
-  Check_Type(i, T_FIXNUM);
-  long j = FIX2LONG(i);
-
-  ssh_session session = libssh_ruby_get_session(self);
-  if (ssh_options_set(session, type, &j) == SSH_ERROR)
-    libssh_ruby_raise(session);
-
-  return Qnil;
-}
-
-/*
- * @overload timeout=(sec)
- *  Set a timeout for the connection in seconds
- *  @since 0.2.0
- *  @param [Fixnum] sec
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_TIMEOUT)
- */
-static VALUE m_set_timeout(VALUE self, VALUE sec) {
-  return set_long_option(self, SSH_OPTIONS_TIMEOUT, sec);
-}
-
-static VALUE set_comma_separated_option(VALUE self, enum ssh_options_e type,
-                                        const char* name, VALUE ary) {
-  VALUE str;
-
-  Check_Type(ary, T_ARRAY);
-  str = rb_ary_join(ary, rb_str_new_cstr(","));
-
-  return set_string_option(self, type, name, str);
-}
-
-/*
- * @overload key_exchange=(methods)
- *  Set the key exchange method to be used
- *  @since 0.2.0
- *  @param [Array<String>] methods
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_KEY_EXCHANGE)
- */
-static VALUE m_set_key_exchange(VALUE self, VALUE kex) {
-  return set_comma_separated_option(self, SSH_OPTIONS_KEY_EXCHANGE, "key exchange methods", kex);
-}
-
-/*
- * @overload hmac_c_s=(methods)
- *  Set the allowed HMAC algorithms from the client to the server.
- *  @param [Array<String>] methods
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_C_S)
- */
-static VALUE m_set_hmac_c_s(VALUE self, VALUE algos) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_C_S, "client-to-server HMAC algorithms", algos);
-}
-
-/*
- * @overload hmac_s_c=(methods)
- *  Set the allowed HMAC algorithms from the server to the client.
- *  @param [Array<String>] methods
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HMAC_S_C)
- */
-static VALUE m_set_hmac_s_c(VALUE self, VALUE algos) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HMAC_S_C, "server-to-client HMAC algorithms", algos);
-}
-
-/*
- * @overload hostkeys=(key_types)
- *  Set the preferred server host key types
- *  @since 0.2.0
- *  @param [Array<String>] key_types
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_HOSTKEYS)
- */
-static VALUE m_set_hostkeys(VALUE self, VALUE hostkeys) {
-  return set_comma_separated_option(self, SSH_OPTIONS_HOSTKEYS, "host key types", hostkeys);
-}
-
-/*
- * @overload publickey_accepted_types=(publickey_types)
- *  Set the preferred public key algorithms to be used for authentication.
- *  @param [Array<String>] publickey_types
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES)
- */
-static VALUE m_set_publickey_accepted_types(VALUE self, VALUE publickey_types) {
-  return set_comma_separated_option(self,
-                                    SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES,
-                                    "public key types",
-                                    publickey_types);
-}
-
-/*
- * @overload stricthostkeycheck=(enable)
- *  Set the parameter StrictHostKeyChecking to avoid asking about a fingerprint
- *  @since 0.2.0
- *  @param [TrueClass, FalseClass] enable
- *  @return [nil]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_options_set(SSH_OPTIONS_STRICTHOSTKEYCHECK)
- */
-static VALUE m_set_stricthostkeycheck(VALUE self, VALUE enable) {
-  return set_int_option(self, SSH_OPTIONS_STRICTHOSTKEYCHECK,
-                        INT2FIX(RTEST(enable) ? 1 : 0));
-}
-
 // LibSSH::Session#set_options(LibSSH::Options)
 static VALUE m_set_options(VALUE self, VALUE value) {
   struct libssh_ruby_options **options = &unwrap_session(self)->options;
@@ -457,14 +333,7 @@ void Init_libssh_session(void) {
   I(gssapi_mic);
 #undef I
 
-  rb_define_method(rb_cLibSSHSession, "log_verbosity=",               m_set_log_verbosity,               1);
-  rb_define_method(rb_cLibSSHSession, "timeout=",                     m_set_timeout,                     1);
-  rb_define_method(rb_cLibSSHSession, "key_exchange=",                m_set_key_exchange,                1);
-  rb_define_method(rb_cLibSSHSession, "hmac_c_s=",                    m_set_hmac_c_s,                    1);
-  rb_define_method(rb_cLibSSHSession, "hmac_s_c=",                    m_set_hmac_s_c,                    1);
-  rb_define_method(rb_cLibSSHSession, "hostkeys=",                    m_set_hostkeys,                    1);
-  rb_define_method(rb_cLibSSHSession, "publickey_accepted_types=",    m_set_publickey_accepted_types,    1);
-  rb_define_method(rb_cLibSSHSession, "stricthostkeycheck=",          m_set_stricthostkeycheck,          1);
+  rb_define_method(rb_cLibSSHSession, "log_verbosity=", m_set_log_verbosity, 1);
 
   rb_define_method(rb_cLibSSHSession, "connect",      m_connect,       0);
   rb_define_method(rb_cLibSSHSession, "disconnect",   m_disconnect,    0);
