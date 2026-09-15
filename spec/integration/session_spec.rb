@@ -27,6 +27,19 @@ RSpec.describe LibSSH::Session do
     it "raises an exception on bad host" do
       expect { build(host: "foo_bar") }.to raise_error ArgumentError, 'Invalid host: foo_bar'
     end
+
+    specify "full options" do
+      options = {
+        timeout: 5, # seconds
+        key_exchange: "ecdh-sha2-nistp256",
+        hmac_c_s: "hmac-sha2-512",
+        hmac_s_c: "hmac-sha2-512",
+        hostkeys: "ssh-rsa",
+        publickey_accepted_types: "ssh-rsa",
+        stricthostkeycheck: false,
+      }
+      expect { build(options) }.not_to raise_error
+    end
   end
 
   describe '#connect' do
