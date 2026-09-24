@@ -2,7 +2,7 @@
 
 static ID id_host, id_port, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
           id_hmac_s_c, id_hostkeys, id_publickey_accepted_types,
-          id_stricthostkeycheck;
+          id_stricthostkeycheck, id_password, id_key;
 
 void Init_libssh_options(void) {
   id_host                     = rb_intern("host");
@@ -15,12 +15,25 @@ void Init_libssh_options(void) {
   id_hostkeys                 = rb_intern("hostkeys");
   id_publickey_accepted_types = rb_intern("publickey_accepted_types");
   id_stricthostkeycheck       = rb_intern("stricthostkeycheck");
+  id_password                 = rb_intern("password");
+  id_key                      = rb_intern("key");
 }
 
 void libssh_ruby_free_options(struct libssh_ruby_options *options) {
   if (!options) return;
+
+  if (options->password)
+    memset(options->password, 0, strlen(options->password));
+
   ruby_xfree(options->host);
   ruby_xfree(options->user);
+  ruby_xfree(options->key_exchange);
+  ruby_xfree(options->hmac_c_s);
+  ruby_xfree(options->hmac_s_c);
+  ruby_xfree(options->hostkeys);
+  ruby_xfree(options->publickey_accepted_types);
+  ruby_xfree(options->password);
+  ssh_key_free(options->key);
   ruby_xfree(options);
 }
 
@@ -166,6 +179,19 @@ static int get_bool(VALUE options, ID name) {
   return NIL_P(value) ? -1 : RTEST(value);
 }
 
+static ssh_key get_key(VALUE options, ID name) {
+  VALUE value = rb_funcallv_public(options, name, 0, NULL);
+  if (NIL_P(value))
+    return NULL;
+
+  ssh_key key = NULL;
+  int rc = ssh_pki_import_privkey_base64(StringValueCStr(value), NULL, NULL, NULL, &key);
+  if (rc != SSH_OK)
+    rb_raise(rb_eArgError, "Invalid base64 private key.");
+
+  return key;
+}
+
 static VALUE copy_options(VALUE data) {
   struct copy_options_args *args = (void*) data;
   VALUE in = args->in;
@@ -181,6 +207,8 @@ static VALUE copy_options(VALUE data) {
   out->hostkeys                 = get_string(in, id_hostkeys);
   out->publickey_accepted_types = get_string(in, id_publickey_accepted_types);
   out->stricthostkeycheck       = get_bool  (in, id_stricthostkeycheck);
+  out->password                 = get_string(in, id_password);
+  out->key                      = get_key   (in, id_key);
 
   return Qnil;
 }

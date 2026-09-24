@@ -4,8 +4,7 @@
 VALUE rb_cLibSSHSession;
 
 static ID id_none, id_warn, id_info, id_debug, id_trace;
-static ID id_password, id_publickey, id_hostbased, id_interactive,
-    id_gssapi_mic;
+static ID id_password, id_key;
 
 static void session_mark(void *);
 static void session_free(void *);
@@ -107,12 +106,74 @@ static VALUE m_set_options(VALUE self, VALUE value) {
 
 struct nogvl_session_args {
   ssh_session session;
+  struct libssh_ruby_options *options;
+  const char* error; // Literal only.
   int rc;
 };
+
+static int authenticate(ssh_session session, struct libssh_ruby_options *options, const char* *error) {
+  if (options->key) {
+    if (ssh_userauth_publickey(session, NULL, options->key) == SSH_AUTH_SUCCESS) {
+      return SSH_OK;
+    } else {
+      *error = "Authentication by key failed.";
+      return SSH_ERROR;
+    }
+  } else if (options->password) {
+    if (ssh_userauth_none(session, NULL) == SSH_AUTH_ERROR)
+      return SSH_ERROR;
+    int auth_methods = ssh_userauth_list(session, NULL);
+    if (auth_methods & SSH_AUTH_METHOD_INTERACTIVE) {
+      for (;;) {
+        int rc = ssh_userauth_kbdint(session, NULL, NULL);
+        if (rc == SSH_AUTH_SUCCESS) {
+          return SSH_OK;
+        } else if (rc == SSH_AUTH_INFO) {
+          int nprompts = ssh_userauth_kbdint_getnprompts(session);
+          if (nprompts == 0) {
+            continue;
+          } else if (nprompts == 1) {
+            if (ssh_userauth_kbdint_setanswer(session, 0, options->password) == 0) {
+              continue;
+            } else {
+              *error = "Could not reply to keyboard-interactive prompt.";
+              return SSH_ERROR;
+            }
+          } else {
+            *error = "Keyboard-interactive authentication requires too many prompts.";
+            return SSH_ERROR;
+          }
+        } else {
+          *error = "Keyboard-interactive authentication with password failed.";
+          return SSH_ERROR;
+        }
+      }
+    } else if (auth_methods & SSH_AUTH_METHOD_PASSWORD) {
+      if (ssh_userauth_password(session, NULL, options->password) == SSH_AUTH_SUCCESS) {
+        return SSH_OK;
+      } else {
+        *error = "Plain authentication with password failed.";
+        return SSH_ERROR;
+      }
+    } else {
+      *error = "Host rejects authentication by password.";
+      return SSH_ERROR;
+    }
+  } else {
+    if (ssh_userauth_publickey_auto(session, NULL, NULL) == SSH_AUTH_SUCCESS) {
+      return SSH_OK;
+    } else {
+      *error = "Automatic authentication failed.";
+      return SSH_ERROR;
+    }
+  }
+}
 
 static void *nogvl_connect(void *ptr) {
   struct nogvl_session_args *args = ptr;
   args->rc = ssh_connect(args->session);
+  if (args->rc == SSH_OK)
+    args->rc = authenticate(args->session, args->options, &args->error);
   return NULL;
 }
 
@@ -123,12 +184,12 @@ static void *nogvl_connect(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_connect
  */
 static VALUE m_connect(VALUE self) {
-  struct nogvl_session_args args;
-
-  args.session = libssh_ruby_get_session(self);
+  struct nogvl_session_args args = {
+    .session = libssh_ruby_get_session(self),
+    .options = unwrap_session(self)->options,
+  };
   rb_thread_call_without_gvl(nogvl_connect, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
-
+  if (args.rc == SSH_ERROR) libssh_ruby_raise_message(args.session, args.error);
   return Qnil;
 }
 
@@ -156,159 +217,6 @@ static VALUE m_disconnect(VALUE self) {
 }
 
 /*
- * @overload userauth_none
- *  Try to authenticate through then "none" method.
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_none
- */
-static VALUE m_userauth_none(VALUE self) {
-  ssh_session session = libssh_ruby_get_session(self);
-  int rc = ssh_userauth_none(session, NULL);
-  if (rc == SSH_ERROR) libssh_ruby_raise(session);
-  return INT2FIX(rc);
-}
-
-/*
- * @overload userauth_password
- *  Try to authenticate through the "password" method.
- *  @param [String] password
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_password
- */
-static VALUE m_userauth_password(VALUE self, VALUE password) {
-  ssh_session session = libssh_ruby_get_session(self);
-  int rc = ssh_userauth_password(session, NULL, StringValueCStr(password));
-  if (rc == SSH_ERROR) libssh_ruby_raise(session);
-  return INT2FIX(rc);
-}
-
-/*
- * @overload userauth_list
- *  Get available authentication methods from the server.
- *  @return [Array<Symbol>]
- *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_list
- */
-static VALUE m_userauth_list(VALUE self) {
-  ssh_session session = libssh_ruby_get_session(self);
-  int list = ssh_userauth_list(session, NULL);
-  if (list == SSH_ERROR) libssh_ruby_raise(session);
-
-  VALUE ary = rb_ary_new();
-  if (list & SSH_AUTH_METHOD_NONE) {
-    rb_ary_push(ary, ID2SYM(id_none));
-  }
-  if (list & SSH_AUTH_METHOD_PASSWORD) {
-    rb_ary_push(ary, ID2SYM(id_password));
-  }
-  if (list & SSH_AUTH_METHOD_PUBLICKEY) {
-    rb_ary_push(ary, ID2SYM(id_publickey));
-  }
-  if (list & SSH_AUTH_METHOD_HOSTBASED) {
-    rb_ary_push(ary, ID2SYM(id_hostbased));
-  }
-  if (list & SSH_AUTH_METHOD_INTERACTIVE) {
-    rb_ary_push(ary, ID2SYM(id_interactive));
-  }
-  if (list & SSH_AUTH_METHOD_GSSAPI_MIC) {
-    rb_ary_push(ary, ID2SYM(id_gssapi_mic));
-  }
-  return ary;
-}
-
-struct nogvl_userauth_publickey_args {
-  ssh_session session;
-  ssh_key privkey;
-  int rc;
-};
-
-static void *nogvl_userauth_publickey(void *ptr) {
-  struct nogvl_userauth_publickey_args *args = ptr;
-  args->rc = ssh_userauth_publickey(args->session, NULL, args->privkey);
-  return NULL;
-}
-
-/*
- * @overload userauth_publickey(private_key)
- *  Authenticate with a private key.
- *  @param [LibSSH::Key] private_key
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_publickey
- */
-static VALUE m_userauth_publickey(VALUE self, VALUE private_key) {
-  KeyHolder *key_holder = libssh_ruby_key_holder(private_key);
-
-  struct nogvl_userauth_publickey_args args;
-  args.session = libssh_ruby_get_session(self);
-  args.privkey = key_holder->key;
-
-  rb_thread_call_without_gvl(nogvl_userauth_publickey, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
-
-  return INT2FIX(args.rc);
-}
-
-static void *nogvl_userauth_publickey_auto(void *ptr) {
-  struct nogvl_session_args *args = ptr;
-  args->rc = ssh_userauth_publickey_auto(args->session, NULL, NULL);
-  return NULL;
-}
-
-/*
- * @overload userauth_publickey_auto
- *  Try to automatically authenticate with public key and "none".
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__auth.html ssh_userauth_publickey_auto
- */
-static VALUE m_userauth_publickey_auto(VALUE self) {
-  struct nogvl_session_args args;
-  args.session = libssh_ruby_get_session(self);
-
-  rb_thread_call_without_gvl(nogvl_userauth_publickey_auto, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == SSH_ERROR) libssh_ruby_raise(args.session);
-
-  return INT2FIX(args.rc);
-}
-
-/*
- * @overload userauth_kbdint
- *  Try to authenticate through the "keyboard-interactive" method.
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint
- */
-static VALUE m_userauth_kbdint(VALUE self) {
-  ssh_session session = libssh_ruby_get_session(self);
-  int rc = ssh_userauth_kbdint(session, NULL, NULL);
-  if (rc == SSH_ERROR) libssh_ruby_raise(session);
-  return INT2FIX(rc);
-}
-
-/*
- * @overload userauth_kbdint_getnprompts
- *  Get the number of prompts (questions) the server has given.
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_getnprompts
- */
-static VALUE m_userauth_kbdint_getnpromts(VALUE self) {
-  int n = ssh_userauth_kbdint_getnprompts(libssh_ruby_get_session(self));
-  return INT2FIX(n);
-}
-
-/*
- * @overload userauth_kbdint_setanswer(i, answer)
- *  Set the answer to a prompt.
- *  @param [Fixnum] i Index of the prompt to answer.
- *  @param [String] answer
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_userauth_kbdint_setanswer
- */
-static VALUE m_userauth_kbdint_setanswer(VALUE self, VALUE i, VALUE answer) {
-  ssh_session session = libssh_ruby_get_session(self);
-  int rc = ssh_userauth_kbdint_setanswer(libssh_ruby_get_session(self), FIX2INT(i), StringValueCStr(answer));
-  if (rc == SSH_ERROR) libssh_ruby_raise(session);
-  return Qnil;
-}
-
-/*
  * Document-class: LibSSH::Session
  * Wrapper for ssh_session struct in libssh.
  *
@@ -320,32 +228,18 @@ void Init_libssh_session(void) {
   rb_cLibSSHSession = rb_define_class_under(rb_mLibSSH, "Session", rb_cObject);
   rb_define_alloc_func(rb_cLibSSHSession, session_alloc);
 
-#define I(name) id_##name = rb_intern(#name)
-  I(none);
-  I(warn);
-  I(info);
-  I(debug);
-  I(trace);
-  I(password);
-  I(publickey);
-  I(hostbased);
-  I(interactive);
-  I(gssapi_mic);
-#undef I
+  id_none     = rb_intern("none");
+  id_warn     = rb_intern("warn");
+  id_info     = rb_intern("info");
+  id_debug    = rb_intern("debug");
+  id_trace    = rb_intern("trace");
+  id_password = rb_intern("password");
+  id_key      = rb_intern("key");
 
   rb_define_method(rb_cLibSSHSession, "log_verbosity=", m_set_log_verbosity, 1);
 
   rb_define_method(rb_cLibSSHSession, "connect",      m_connect,       0);
   rb_define_method(rb_cLibSSHSession, "disconnect",   m_disconnect,    0);
-
-  rb_define_method(rb_cLibSSHSession, "userauth_none",               m_userauth_none,              0);
-  rb_define_method(rb_cLibSSHSession, "userauth_password",           m_userauth_password,          1);
-  rb_define_method(rb_cLibSSHSession, "userauth_list",               m_userauth_list,              0);
-  rb_define_method(rb_cLibSSHSession, "userauth_publickey",          m_userauth_publickey,         1);
-  rb_define_method(rb_cLibSSHSession, "userauth_publickey_auto",     m_userauth_publickey_auto,    0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint",             m_userauth_kbdint,            0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_getnprompts", m_userauth_kbdint_getnpromts, 0);
-  rb_define_method(rb_cLibSSHSession, "userauth_kbdint_setanswer",   m_userauth_kbdint_setanswer,  2);
 
   rb_define_private_method(rb_cLibSSHSession, "set_options", m_set_options, 1);
 }

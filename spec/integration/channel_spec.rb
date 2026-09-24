@@ -6,9 +6,9 @@ RSpec.describe LibSSH::Channel do
       host: SshHelper.host,
       port: DockerHelper.port,
       user: SshHelper.user,
+      password: SshHelper.password,
     )
     @session.connect
-    @session.userauth_password(SshHelper.password)
     @session
   end
 

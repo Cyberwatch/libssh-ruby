@@ -24,16 +24,29 @@ void Init_libssh_error(void) {
 }
 
 void libssh_ruby_raise(ssh_session session) {
-  VALUE exc, code;
-  VALUE argv[1];
+  libssh_ruby_raise_message(session, NULL);
+}
+
+void libssh_ruby_raise_message(ssh_session session, const char* message) {
+  const char* libssh_error = ssh_get_error(session);
 
   /* Empty messages are converted to nil so that #to_s defaults to the error type. */
-  const char* message = ssh_get_error(session);
-  argv[0] = (message != NULL && message[0] != '\0') ? rb_str_new_cstr(message) : Qnil;
+  if (libssh_error && libssh_error[0] == '\0')
+    libssh_error = NULL;
 
-  exc = rb_class_new_instance(1, argv, rb_eLibSSHError);
-  code = INT2FIX(ssh_get_error_code(session));
-  rb_ivar_set(exc, id_code, code);
+  VALUE full_message = Qnil;
+  if (message) {
+    full_message = rb_str_new_cstr(message);
+    if (libssh_error) {
+      rb_str_cat_cstr(full_message, " ");
+      rb_str_cat_cstr(full_message, libssh_error);
+    }
+  } else if (libssh_error) {
+    full_message = rb_str_new_cstr(libssh_error);
+  }
 
-  rb_exc_raise(exc);
+  VALUE argv[1] = { full_message };
+  VALUE exception = rb_class_new_instance(1, argv, rb_eLibSSHError);
+  rb_ivar_set(exception, id_code, INT2FIX(ssh_get_error_code(session)));
+  rb_exc_raise(exception);
 }
