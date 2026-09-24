@@ -24,12 +24,14 @@ struct libssh_ruby_options {
   unsigned int port;                      // SSH_OPTIONS_PORT
   char*        user;                      // SSH_OPTIONS_USER
   long         timeout;                   // SSH_OPTIONS_TIMEOUT
-  const char*  key_exchange;              // SSH_OPTIONS_KEY_EXCHANGE
-  const char*  hmac_c_s;                  // SSH_OPTIONS_HMAC_C_S
-  const char*  hmac_s_c;                  // SSH_OPTIONS_HMAC_S_C
-  const char*  hostkeys;                  // SSH_OPTIONS_HOSTKEYS
-  const char*  publickey_accepted_types;  // SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES
+  char*        key_exchange;              // SSH_OPTIONS_KEY_EXCHANGE
+  char*        hmac_c_s;                  // SSH_OPTIONS_HMAC_C_S
+  char*        hmac_s_c;                  // SSH_OPTIONS_HMAC_S_C
+  char*        hostkeys;                  // SSH_OPTIONS_HOSTKEYS
+  char*        publickey_accepted_types;  // SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES
   int          stricthostkeycheck;        // SSH_OPTIONS_STRICTHOSTKEYCHECK
+  char*        password;
+  ssh_key      key;
 };
 
 struct libssh_ruby_options* libssh_ruby_clone_options(VALUE options);
@@ -44,6 +46,7 @@ struct libssh_ruby_session {
 
 ssh_session libssh_ruby_get_session(VALUE session);
 [[noreturn]] void libssh_ruby_raise(ssh_session session);
+[[noreturn]] void libssh_ruby_raise_message(ssh_session session, const char* message);
 
 struct KeyHolderStruct {
   ssh_key key;
