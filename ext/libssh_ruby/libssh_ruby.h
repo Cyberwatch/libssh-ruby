@@ -6,6 +6,7 @@
 
 #include <ruby/ruby.h>
 #include <libssh/libssh.h>
+#include <libssh/callbacks.h>
 
 extern VALUE rb_mLibSSH;
 extern VALUE rb_cLibSSHKey;
@@ -32,16 +33,25 @@ struct libssh_ruby_options {
   int          stricthostkeycheck;        // SSH_OPTIONS_STRICTHOSTKEYCHECK
   char*        password;
   ssh_key      key;
+
+  struct libssh_ruby_options *proxy_jump;
 };
 
 struct libssh_ruby_options* libssh_ruby_clone_options(VALUE options);
 int libssh_ruby_apply_options(struct libssh_ruby_options *options, ssh_session session, char **error);
 void libssh_ruby_free_options(struct libssh_ruby_options *options);
 
+struct libssh_ruby_proxy_jump {
+  struct ssh_jump_callbacks_struct callbacks;
+  struct libssh_ruby_options *options; // Borrowed.
+};
+
 // Underlying structure behind LibSSH::Session.
 struct libssh_ruby_session {
   ssh_session session;
   struct libssh_ruby_options *options;
+  struct libssh_ruby_proxy_jump *proxy_jumps;
+  char* proxy_jump_uris;
 };
 
 ssh_session libssh_ruby_get_session(VALUE session);
