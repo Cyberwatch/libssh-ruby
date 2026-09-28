@@ -9,6 +9,7 @@ module LibSSH
   #       host: "localhost",
   #       port: 22,
   #       timeout: 5, # seconds
+  #       proxy_jump: LibSSH::Options.new(…),
   #
   #       # Negotiation
   #       key_exchange: "ecdh-sha2-nistp256,…",
@@ -30,10 +31,18 @@ module LibSSH
                   :hmac_s_c, :hostkeys, :publickey_accepted_types,
                   :stricthostkeycheck, :password, :key
 
+    attr_reader :proxy_jump
+
     def initialize(attrs)
       attrs.each do |key, value|
         send("#{key}=", value)
       end
     end
+
+    def proxy_jump=(options)
+      @proxy_jump = LibSSH::Options(options)
+    end
   end
+
+  def self.Options(options) = options.is_a?(Options) ? options : Options.new(options)
 end

@@ -41,6 +41,8 @@ static void session_free(void *arg) {
   struct libssh_ruby_session *holder = arg;
   ssh_free(holder->session);
   libssh_ruby_free_options(holder->options);
+  ruby_xfree(holder->proxy_jumps);
+  ruby_xfree(holder->proxy_jump_uris);
   ruby_xfree(holder);
 }
 
@@ -80,26 +82,6 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   ssh_session session = libssh_ruby_get_session(self);
   if (ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &c_verbosity) == SSH_ERROR)
     libssh_ruby_raise(session);
-
-  return Qnil;
-}
-
-// LibSSH::Session#set_options(LibSSH::Options)
-static VALUE m_set_options(VALUE self, VALUE value) {
-  struct libssh_ruby_options **options = &unwrap_session(self)->options;
-  if (*options) rb_raise(rb_eArgError, "Cannot set options twice.");
-  *options = libssh_ruby_clone_options(value);
-
-  ssh_session session = libssh_ruby_get_session(self);
-  char *error;
-  int rc = libssh_ruby_apply_options(*options, session, &error);
-  if (error) {
-    VALUE exception_argv[1] = { rb_str_new_cstr(error) };
-    free(error);
-    rb_exc_raise(rb_class_new_instance(1, exception_argv, rb_eArgError));
-  } else if (rc < 0) {
-    libssh_ruby_raise(session);
-  }
 
   return Qnil;
 }
@@ -212,6 +194,88 @@ static VALUE m_disconnect(VALUE self) {
 
   args.session = libssh_ruby_get_session(self);
   rb_thread_call_without_gvl(nogvl_disconnect, &args, RUBY_UBF_IO, NULL);
+
+  return Qnil;
+}
+
+static int proxy_jump_before_connection(ssh_session session, void *userdata) {
+  struct libssh_ruby_proxy_jump *jump = userdata;
+  char* error;
+  int rc = libssh_ruby_apply_options(jump->options, session, &error);
+  free(error);
+  return rc;
+}
+
+static int proxy_jump_authenticate(ssh_session session, void *userdata) {
+  struct libssh_ruby_proxy_jump *jump = userdata;
+  const char *error;
+  return authenticate(session, jump->options, &error);
+}
+
+static void configure_proxy_jumps(VALUE session) {
+  struct libssh_ruby_session *holder = unwrap_session(session);
+  struct libssh_ruby_options *options = holder->options;
+
+  size_t jump_count = 0;
+  for (struct libssh_ruby_options *jump = options->proxy_jump; jump != NULL; jump = jump->proxy_jump)
+    ++jump_count;
+
+  if (jump_count == 0)
+    return;
+
+  // libssh requires a list of hostnames even though we set them in the before_connection callback.
+  // The URIs we supply are placeholders for libssh to know how many callbacks to expect.
+  holder->proxy_jump_uris = RB_ALLOC_N(char, jump_count * 2);
+  char *cursor = holder->proxy_jump_uris;
+  for (size_t i = 0; i < jump_count; ++i) {
+    *(cursor++) = '0';
+    *(cursor++) = (i == jump_count - 1) ? '\0' : ',';
+  }
+
+  int rc = ssh_options_set(holder->session, SSH_OPTIONS_PROXYJUMP, holder->proxy_jump_uris);
+  if (rc != 0)
+    libssh_ruby_raise(libssh_ruby_get_session(session));
+
+  holder->proxy_jumps = RB_ZALLOC_N(struct libssh_ruby_proxy_jump, jump_count);
+  struct libssh_ruby_options *jump_options = options->proxy_jump;
+  struct libssh_ruby_proxy_jump *jump_struct = &holder->proxy_jumps[jump_count - 1];
+  while (jump_options != NULL) {
+    jump_struct->callbacks.userdata = jump_struct;
+    jump_struct->callbacks.before_connection = proxy_jump_before_connection;
+    jump_struct->callbacks.authenticate = proxy_jump_authenticate;
+    jump_struct->options = jump_options;
+
+    jump_options = jump_options->proxy_jump;
+    --jump_struct; // The innermost jump must appear first.
+  }
+
+  for (size_t i = 0; i < jump_count; ++i) {
+    rc = ssh_options_set(holder->session,
+                         SSH_OPTIONS_PROXYJUMP_CB_LIST_APPEND,
+                         &holder->proxy_jumps[i].callbacks);
+    if (rc != 0)
+      libssh_ruby_raise(libssh_ruby_get_session(session));
+  }
+}
+
+// LibSSH::Session#set_options(LibSSH::Options)
+static VALUE m_set_options(VALUE self, VALUE value) {
+  struct libssh_ruby_options **options = &unwrap_session(self)->options;
+  if (*options) rb_raise(rb_eArgError, "Cannot set options twice.");
+  *options = libssh_ruby_clone_options(value);
+
+  ssh_session session = libssh_ruby_get_session(self);
+  char *error;
+  int rc = libssh_ruby_apply_options(*options, session, &error);
+  if (error) {
+    VALUE exception_argv[1] = { rb_str_new_cstr(error) };
+    free(error);
+    rb_exc_raise(rb_class_new_instance(1, exception_argv, rb_eArgError));
+  } else if (rc < 0) {
+    libssh_ruby_raise(session);
+  }
+
+  configure_proxy_jumps(self);
 
   return Qnil;
 }

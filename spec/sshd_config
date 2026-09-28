@@ -4,5 +4,6 @@ PasswordAuthentication yes
 PermitEmptyPasswords no
 PermitRootLogin no
 PerSourcePenalties no
+AllowTcpForwarding yes
 
 PrintMotd no

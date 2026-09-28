@@ -71,5 +71,14 @@ RSpec.describe LibSSH::Session do
     specify "automatic" do
       expect { build.connect }.to raise_error LibSSH::Error, /\AAutomatic authentication failed/
     end
+
+    specify "proxy jumps" do
+      credentials = { user: SshHelper.user, password: SshHelper.password }
+      options = { host: "127.0.0.1", port: 2222, **credentials }
+      good_jump = { host: SshHelper.host, port: DockerHelper.port, **credentials, stricthostkeycheck: false }
+      bad_jump = { **good_jump, password: "bad" }
+      expect { build(**options, proxy_jump: good_jump).connect }.not_to raise_error
+      expect { build(**options, proxy_jump: bad_jump).connect }.to raise_error LibSSH::Error
+    end
   end
 end

@@ -2,7 +2,7 @@
 
 static ID id_host, id_port, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
           id_hmac_s_c, id_hostkeys, id_publickey_accepted_types,
-          id_stricthostkeycheck, id_password, id_key;
+          id_stricthostkeycheck, id_password, id_key, id_proxy_jump;
 
 void Init_libssh_options(void) {
   id_host                     = rb_intern("host");
@@ -17,6 +17,7 @@ void Init_libssh_options(void) {
   id_stricthostkeycheck       = rb_intern("stricthostkeycheck");
   id_password                 = rb_intern("password");
   id_key                      = rb_intern("key");
+  id_proxy_jump               = rb_intern("proxy_jump");
 }
 
 void libssh_ruby_free_options(struct libssh_ruby_options *options) {
@@ -34,6 +35,7 @@ void libssh_ruby_free_options(struct libssh_ruby_options *options) {
   ruby_xfree(options->publickey_accepted_types);
   ruby_xfree(options->password);
   ssh_key_free(options->key);
+  libssh_ruby_free_options(options->proxy_jump);
   ruby_xfree(options);
 }
 
@@ -192,23 +194,29 @@ static ssh_key get_key(VALUE options, ID name) {
   return key;
 }
 
+static struct libssh_ruby_options* get_options(VALUE options, ID name) {
+  VALUE value = rb_funcallv_public(options, name, 0, NULL);
+  return NIL_P(value) ? NULL : libssh_ruby_clone_options(value);
+}
+
 static VALUE copy_options(VALUE data) {
   struct copy_options_args *args = (void*) data;
   VALUE in = args->in;
   struct libssh_ruby_options* out = args->out;
 
-  out->host                     = get_string(in, id_host);
-  out->port                     = get_uint  (in, id_port);
-  out->user                     = get_string(in, id_user);
-  out->timeout                  = get_long  (in, id_timeout);
-  out->key_exchange             = get_string(in, id_key_exchange);
-  out->hmac_c_s                 = get_string(in, id_hmac_c_s);
-  out->hmac_s_c                 = get_string(in, id_hmac_s_c);
-  out->hostkeys                 = get_string(in, id_hostkeys);
-  out->publickey_accepted_types = get_string(in, id_publickey_accepted_types);
-  out->stricthostkeycheck       = get_bool  (in, id_stricthostkeycheck);
-  out->password                 = get_string(in, id_password);
-  out->key                      = get_key   (in, id_key);
+  out->host                     = get_string (in, id_host);
+  out->port                     = get_uint   (in, id_port);
+  out->user                     = get_string (in, id_user);
+  out->timeout                  = get_long   (in, id_timeout);
+  out->key_exchange             = get_string (in, id_key_exchange);
+  out->hmac_c_s                 = get_string (in, id_hmac_c_s);
+  out->hmac_s_c                 = get_string (in, id_hmac_s_c);
+  out->hostkeys                 = get_string (in, id_hostkeys);
+  out->publickey_accepted_types = get_string (in, id_publickey_accepted_types);
+  out->stricthostkeycheck       = get_bool   (in, id_stricthostkeycheck);
+  out->password                 = get_string (in, id_password);
+  out->key                      = get_key    (in, id_key);
+  out->proxy_jump               = get_options(in, id_proxy_jump);
 
   return Qnil;
 }
