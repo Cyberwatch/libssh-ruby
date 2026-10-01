@@ -151,11 +151,30 @@ static int authenticate(ssh_session session, struct libssh_ruby_options *options
   }
 }
 
+static int check_host(ssh_session session, const char* *error) {
+  enum ssh_known_hosts_e state = ssh_session_is_known_server(session);
+  switch (state) {
+    case SSH_KNOWN_HOSTS_OK:        return SSH_OK;
+    case SSH_KNOWN_HOSTS_CHANGED:   *error = "Server key differs from known hosts."; break;
+    case SSH_KNOWN_HOSTS_OTHER:     *error = "Server key type differs from known hosts."; break;
+    case SSH_KNOWN_HOSTS_UNKNOWN:   *error = "Server missing from known hosts."; break;
+    case SSH_KNOWN_HOSTS_NOT_FOUND: *error = "Missing known hosts file."; break;
+    default:
+    case SSH_KNOWN_HOSTS_ERROR:     *error = "Error checking known hosts."; break;
+  }
+  return SSH_ERROR;
+}
+
 static void *nogvl_connect(void *ptr) {
   struct nogvl_session_args *args = ptr;
+
   args->rc = ssh_connect(args->session);
-  if (args->rc == SSH_OK)
-    args->rc = authenticate(args->session, args->options, &args->error);
+  if (args->rc != SSH_OK) return NULL;
+
+  args->rc = check_host(args->session, &args->error);
+  if (args->rc != SSH_OK) return NULL;
+
+  args->rc = authenticate(args->session, args->options, &args->error);
   return NULL;
 }
 
