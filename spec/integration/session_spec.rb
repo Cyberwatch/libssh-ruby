@@ -10,6 +10,7 @@ RSpec.describe LibSSH::Session do
       host: SshHelper.host,
       port: DockerHelper.port,
       user: SshHelper.user,
+      stricthostkeycheck: false,
       **options,
     )
   end
@@ -36,7 +37,6 @@ RSpec.describe LibSSH::Session do
         hmac_s_c: "hmac-sha2-512",
         hostkeys: "ssh-rsa",
         publickey_accepted_types: "ssh-rsa",
-        stricthostkeycheck: false,
       }
       expect { build(options) }.not_to raise_error
     end
@@ -72,9 +72,14 @@ RSpec.describe LibSSH::Session do
       expect { build.connect }.to raise_error LibSSH::Error, /\AAutomatic authentication failed/
     end
 
+    specify "host key checking" do
+      expect { build(password: SshHelper.password, stricthostkeycheck: true).connect }.to \
+        raise_error LibSSH::Error, "Server missing from known hosts."
+    end
+
     specify "proxy jumps" do
       credentials = { user: SshHelper.user, password: SshHelper.password }
-      options = { host: "127.0.0.1", port: 2222, **credentials }
+      options =   { host: "127.0.0.1",    port: 2222,              **credentials, stricthostkeycheck: false }
       good_jump = { host: SshHelper.host, port: DockerHelper.port, **credentials, stricthostkeycheck: false }
       bad_jump = { **good_jump, password: "bad" }
       expect { build(**options, proxy_jump: good_jump).connect }.not_to raise_error

@@ -7,6 +7,7 @@ RSpec.describe LibSSH::Channel do
       port: DockerHelper.port,
       user: SshHelper.user,
       password: SshHelper.password,
+      stricthostkeycheck: false,
     )
     @session.connect
     @session
