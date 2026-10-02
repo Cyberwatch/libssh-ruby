@@ -15,6 +15,8 @@ module DockerHelper
       -e LOG_STDOUT=true \
       -v ./spec:/spec:ro \
       -v ./spec/sshd_config:/config/sshd/sshd_config.d/99-override.conf:ro \
+      -v ./spec/ssh_host_ed25519_key:/config/ssh_host_keys/ssh_host_ed25519_key:ro \
+      -v ./spec/ssh_host_ed25519_key.pub:/config/ssh_host_keys/ssh_host_ed25519_key.pub:ro \
       --publish-all \
       lscr.io/linuxserver/openssh-server:latest
   SH
@@ -30,7 +32,6 @@ module DockerHelper
       container = JSON.parse(IO.popen(['docker', 'inspect', @container_id], &:read))[0]
       @port = container['NetworkSettings']['Ports']['2222/tcp'][0]['HostPort'].to_i
       wait_for_ready
-      @host_key = IO.popen(['docker', 'exec', @container_id, 'cat', '/config/ssh_host_keys/ssh_host_ed25519_key.pub'], &:read)
     end
 
     def stop
@@ -40,7 +41,7 @@ module DockerHelper
       end
     end
 
-    attr_reader :port, :host_key
+    attr_reader :port
 
     private
 
@@ -58,60 +59,12 @@ module DockerHelper
 end
 
 module SshHelper
-  class << self
-    def host
-      'localhost'
-    end
+  extend self
 
-    def user
-      'alice'
-    end
-
-    def password
-      'alice'
-    end
-
-    def default_key_type
-      @default_key_type ||=
-        if Gem::Version.new(LibSSH.version.split('/').first) >= Gem::Version.new('0.7.0')
-          'ed25519'
-        else
-          'ecdsa'
-        end
-    end
-
-    def identity_path
-      File.join(__dir__, "id_#{default_key_type}")
-    end
-
-    def empty_known_hosts
-      File.join(__dir__, 'known_hosts.empty')
-    end
-
-    def absent_known_hosts
-      File.join(__dir__, 'known_hosts.enoent')
-    end
-
-    def valid_known_hosts
-      File.join(__dir__, 'known_hosts.valid')
-    end
-
-    def invalid_known_hosts
-      File.join(__dir__, 'known_hosts.invalid')
-    end
-
-    def prepare_known_hosts
-      FileUtils.rm_f(absent_known_hosts)
-      File.open(empty_known_hosts, 'w') {}
-
-      File.open(valid_known_hosts, 'w') do |f|
-        f.puts("[#{host}]:#{DockerHelper.port} #{DockerHelper.host_key}")
-      end
-      File.open(invalid_known_hosts, 'w') do |f|
-        f.puts("[#{host}]:#{DockerHelper.port} #{DockerHelper.host_key.sub('A', 'B')}")
-      end
-    end
-  end
+  def host = "localhost"
+  def user = "alice"
+  def password = "alice"
+  def identity_path = "spec/id_ed25519"
 end
 
 RSpec.configure do |config|
@@ -143,9 +96,5 @@ RSpec.configure do |config|
 
   config.after :suite do
     DockerHelper.stop
-  end
-
-  config.before :each do
-    SshHelper.prepare_known_hosts
   end
 end

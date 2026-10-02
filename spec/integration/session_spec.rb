@@ -55,7 +55,7 @@ RSpec.describe LibSSH::Session do
       expect { build(key: "bad key").connect }.to raise_error \
         ArgumentError, "Invalid base64 private key."
 
-      expect { build(key: File.read("spec/id_bad")).connect }.to raise_error \
+      expect { build(key: File.read("spec/ssh_host_ed25519_key")).connect }.to raise_error \
         LibSSH::Error, /\AAuthentication by key failed./
 
       expect { build(key: File.read("spec/id_ed25519")).connect }.not_to raise_error
@@ -85,5 +85,11 @@ RSpec.describe LibSSH::Session do
       expect { build(**options, proxy_jump: good_jump).connect }.not_to raise_error
       expect { build(**options, proxy_jump: bad_jump).connect }.to raise_error LibSSH::Error
     end
+  end
+
+  specify "#get_server_publickey" do
+    session = build(password: SshHelper.password)
+    session.connect
+    expect(session.get_server_publickey.to_s).to eq File.read("spec/ssh_host_ed25519_key.pub").chomp
   end
 end
