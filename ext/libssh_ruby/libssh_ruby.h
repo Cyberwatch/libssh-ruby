@@ -38,7 +38,7 @@ struct libssh_ruby_options {
 };
 
 struct libssh_ruby_options* libssh_ruby_clone_options(VALUE options);
-int libssh_ruby_apply_options(struct libssh_ruby_options *options, ssh_session session, char **error);
+int libssh_ruby_apply_options(struct libssh_ruby_options *options, ssh_session session, const char* *error);
 void libssh_ruby_free_options(struct libssh_ruby_options *options);
 
 struct libssh_ruby_proxy_jump {

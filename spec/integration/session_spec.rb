@@ -26,7 +26,7 @@ RSpec.describe LibSSH::Session do
     end
 
     it "raises an exception on bad host" do
-      expect { build(host: "foo_bar") }.to raise_error ArgumentError, 'Invalid host: foo_bar'
+      expect { build(host: "foo_bar") }.to raise_error ArgumentError, "Invalid host."
     end
 
     specify "full options" do
