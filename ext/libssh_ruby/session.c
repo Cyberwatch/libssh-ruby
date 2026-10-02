@@ -200,10 +200,8 @@ static VALUE m_disconnect(VALUE self) {
 
 static int proxy_jump_before_connection(ssh_session session, void *userdata) {
   struct libssh_ruby_proxy_jump *jump = userdata;
-  char* error;
-  int rc = libssh_ruby_apply_options(jump->options, session, &error);
-  free(error);
-  return rc;
+  const char* error;
+  return libssh_ruby_apply_options(jump->options, session, &error);
 }
 
 static int proxy_jump_authenticate(ssh_session session, void *userdata) {
@@ -265,15 +263,9 @@ static VALUE m_set_options(VALUE self, VALUE value) {
   *options = libssh_ruby_clone_options(value);
 
   ssh_session session = libssh_ruby_get_session(self);
-  char *error;
-  int rc = libssh_ruby_apply_options(*options, session, &error);
-  if (error) {
-    VALUE exception_argv[1] = { rb_str_new_cstr(error) };
-    free(error);
-    rb_exc_raise(rb_class_new_instance(1, exception_argv, rb_eArgError));
-  } else if (rc < 0) {
-    libssh_ruby_raise(session);
-  }
+  const char *error;
+  if (libssh_ruby_apply_options(*options, session, &error) < 0)
+    rb_raise(rb_eArgError, "%s", error);
 
   configure_proxy_jumps(self);
 
