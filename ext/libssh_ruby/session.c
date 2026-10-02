@@ -291,6 +291,14 @@ static VALUE m_set_options(VALUE self, VALUE value) {
   return Qnil;
 }
 
+static VALUE m_get_server_publickey(VALUE self) {
+  ssh_session session = libssh_ruby_get_session(self);
+  ssh_key key;
+  if (ssh_get_server_publickey(session, &key) < 0)
+    libssh_ruby_raise(session);
+  return libssh_ruby_wrap_key(key);
+}
+
 /*
  * Document-class: LibSSH::Session
  * Wrapper for ssh_session struct in libssh.
@@ -313,8 +321,9 @@ void Init_libssh_session(void) {
 
   rb_define_method(rb_cLibSSHSession, "log_verbosity=", m_set_log_verbosity, 1);
 
-  rb_define_method(rb_cLibSSHSession, "connect",      m_connect,       0);
-  rb_define_method(rb_cLibSSHSession, "disconnect",   m_disconnect,    0);
+  rb_define_method(rb_cLibSSHSession, "connect",              m_connect,               0);
+  rb_define_method(rb_cLibSSHSession, "disconnect",           m_disconnect,            0);
+  rb_define_method(rb_cLibSSHSession, "get_server_publickey", m_get_server_publickey, 0);
 
   rb_define_private_method(rb_cLibSSHSession, "set_options", m_set_options, 1);
 }

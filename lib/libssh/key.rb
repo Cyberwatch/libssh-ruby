@@ -9,5 +9,13 @@ module LibSSH
     def sha1_hex
       sha1.unpack('H*')[0].each_char.each_slice(2).map(&:join).join(':')
     end
+
+    def to_s
+      if public?
+        "#{type_str} #{LibSSH::PKI.export_pubkey_base64(self)}"
+      else
+       raise NotImplementedError "private key export"
+      end
+    end
   end
 end

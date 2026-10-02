@@ -1,5 +1,11 @@
 #include "libssh_ruby.h"
 
+struct libssh_ruby_key {
+  ssh_key key;
+};
+
+typedef struct libssh_ruby_key KeyHolder;
+
 VALUE rb_cLibSSHKey;
 VALUE rb_mLibSSHPKI;
 
@@ -14,12 +20,6 @@ static const rb_data_type_t key_type = {
     RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
-static VALUE key_alloc(VALUE klass) {
-  KeyHolder *holder = ALLOC(KeyHolder);
-  holder->key = NULL;
-  return TypedData_Wrap_Struct(klass, &key_type, holder);
-}
-
 static void key_free(void *arg) {
   KeyHolder *holder = arg;
   if (holder->key != NULL) {
@@ -32,19 +32,25 @@ static size_t key_memsize(RB_UNUSED_VAR(const void *arg)) {
   return sizeof(KeyHolder);
 }
 
-/*
- * @overload initialize
- *  Initialize an empty key.
- *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_key_new
- */
-static VALUE m_initialize(VALUE self) {
-  KeyHolder *holder;
-  TypedData_Get_Struct(self, KeyHolder, &key_type, holder);
-  holder->key = ssh_key_new();
-  return self;
+static VALUE do_wrap_key(VALUE data) {
+  struct libssh_ruby_key *holder;
+  VALUE object = TypedData_Make_Struct(rb_cLibSSHKey, struct libssh_ruby_key, &key_type, holder);
+  holder->key = *(ssh_key*) data;
+  return object;
 }
 
-KeyHolder *libssh_ruby_key_holder(VALUE key) {
+VALUE libssh_ruby_wrap_key(ssh_key key) {
+  int state;
+  // Ensure the key is freed when TypedData_Make_Struct raises an exception.
+  VALUE wrapper = rb_protect(do_wrap_key, (VALUE) &key, &state);
+  if (state) {
+    ssh_key_free(key);
+    rb_jump_tag(state);
+  }
+  return wrapper;
+}
+
+static struct libssh_ruby_key *libssh_ruby_key_holder(VALUE key) {
   KeyHolder *holder;
   TypedData_Get_Struct(key, KeyHolder, &key_type, holder);
   return holder;
@@ -112,14 +118,6 @@ static VALUE m_private_p(VALUE self) {
   return ssh_key_is_private(libssh_ruby_key_holder(self)->key) ? Qtrue : Qfalse;
 }
 
-static void raise_argument_error(const char* message) {
-    VALUE exc_type = rb_const_get(rb_cObject, rb_intern("ArgumentError"));
-    VALUE argv[1];
-    argv[0] = rb_str_new2(message);
-    VALUE exc = rb_class_new_instance(1, argv, exc_type);
-    rb_exc_raise(exc);
-}
-
 /*
  * @overload import_privkey_base64(key_data)
  *  Read a private key from memory. Raises an ArgumentError on invalid data.
@@ -128,16 +126,10 @@ static void raise_argument_error(const char* message) {
  *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_import_privkey_base64
  */
 static VALUE m_pki_import_privkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key_data) {
-  VALUE ruby_key = key_alloc(rb_cLibSSHKey);
-  KeyHolder *holder = libssh_ruby_key_holder(ruby_key);
-  int rc = ssh_pki_import_privkey_base64(StringValueCStr(key_data), NULL, NULL, NULL, &holder->key);
-
-  if (rc == SSH_OK) {
-    return ruby_key;
-  } else {
-    raise_argument_error("invalid base64 private key");
-    return Qnil;
-  }
+  ssh_key key;
+  if (ssh_pki_import_privkey_base64(StringValueCStr(key_data), NULL, NULL, NULL, &key) != SSH_OK)
+    rb_raise(rb_eArgError, "Invalid base64 private key.");
+  return libssh_ruby_wrap_key(key);
 }
 
 /*
@@ -148,17 +140,11 @@ static VALUE m_pki_import_privkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key_da
  *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_export_privkey_to_pubkey
  */
 static VALUE m_pki_export_privkey_to_pubkey(RB_UNUSED_VAR(VALUE self), VALUE privkey) {
-  VALUE pubkey = key_alloc(rb_cLibSSHKey);
-  KeyHolder *pubkey_holder = libssh_ruby_key_holder(pubkey);
+  ssh_key pubkey;
   KeyHolder *privkey_holder = libssh_ruby_key_holder(privkey);
-  int rc = ssh_pki_export_privkey_to_pubkey(privkey_holder->key, &pubkey_holder->key);
-
-  if (rc == SSH_OK) {
-    return pubkey;
-  } else {
-    raise_argument_error("could not extract public key from private key");
-    return Qnil;
-  }
+  if (ssh_pki_export_privkey_to_pubkey(privkey_holder->key, &pubkey) != SSH_OK)
+    rb_raise(rb_eArgError, "Could not extract public key from private key.");
+  return libssh_ruby_wrap_key(pubkey);
 }
 
 /*
@@ -176,7 +162,7 @@ static VALUE m_pki_export_pubkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key) {
   if (rc == SSH_OK) {
     rv = rb_str_new2(b64);
   } else {
-    raise_argument_error("could not export public key into base64");
+    rb_raise(rb_eArgError, "Could not export public key into base64.");
   }
   SSH_STRING_FREE_CHAR(b64);
   return rv;
@@ -192,7 +178,7 @@ static VALUE m_pki_export_pubkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key) {
 
 void Init_libssh_key(void) {
   rb_cLibSSHKey = rb_define_class_under(rb_mLibSSH, "Key", rb_cObject);
-  rb_define_alloc_func(rb_cLibSSHKey, key_alloc);
+  rb_undef_alloc_func(rb_cLibSSHKey);
 
 #define E(name) \
   rb_define_const(rb_cLibSSHKey, "KEYTYPE_" #name, INT2FIX(SSH_KEYTYPE_##name))
@@ -206,7 +192,6 @@ void Init_libssh_key(void) {
 #endif
 #undef E
 
-  rb_define_method(rb_cLibSSHKey, "initialize", m_initialize, 0);
   rb_define_method(rb_cLibSSHKey, "sha1",       m_sha1,       0);
   rb_define_method(rb_cLibSSHKey, "type",       m_type,       0);
   rb_define_method(rb_cLibSSHKey, "type_str",   m_type_str,   0);

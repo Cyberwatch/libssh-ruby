@@ -9,7 +9,6 @@
 #include <libssh/callbacks.h>
 
 extern VALUE rb_mLibSSH;
-extern VALUE rb_cLibSSHKey;
 
 void Init_libssh_ruby(void);
 void Init_libssh_options(void);
@@ -58,11 +57,7 @@ ssh_session libssh_ruby_get_session(VALUE session);
 [[noreturn]] void libssh_ruby_raise(ssh_session session);
 [[noreturn]] void libssh_ruby_raise_message(ssh_session session, const char* message);
 
-struct KeyHolderStruct {
-  ssh_key key;
-};
-typedef struct KeyHolderStruct KeyHolder;
-
-KeyHolder *libssh_ruby_key_holder(VALUE key);
+// Moves an ssh_key’s ownership into a LibSSH::Key. Frees the key on error.
+VALUE libssh_ruby_wrap_key(ssh_key key);
 
 #endif /* LIBSSH_RUBY_H */
