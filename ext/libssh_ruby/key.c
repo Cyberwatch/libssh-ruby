@@ -56,34 +56,8 @@ static struct libssh_ruby_key *libssh_ruby_key_holder(VALUE key) {
   return holder;
 }
 
-/*
- * @overload sha1
- *  Return the hash in SHA1 form.
- *  @return [String]
- *  @see http://api.libssh.org/stable/group__libssh__pki.html
- */
-static VALUE m_sha1(VALUE self) {
-  KeyHolder *holder;
-  unsigned char *c_hash;
-  size_t len;
-  VALUE hash;
-
-  holder = libssh_ruby_key_holder(self);
-  ssh_get_publickey_hash(holder->key, SSH_PUBLICKEY_HASH_SHA1, &c_hash, &len);
-  hash = rb_str_new((char *)c_hash, len);
-  ssh_clean_pubkey_hash(&c_hash);
-
-  return hash;
-}
-
-/*
- * @overload type
- *  Return the type of a SSH key.
- *  @return [Fixnum]
- *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_key_type
- */
-static VALUE m_type(VALUE self) {
-  return INT2FIX(ssh_key_type(libssh_ruby_key_holder(self)->key));
+static ssh_key libssh_ruby_unwrap_key(VALUE key) {
+  return libssh_ruby_key_holder(key)->key;
 }
 
 /*
@@ -96,6 +70,32 @@ static VALUE m_type(VALUE self) {
 static VALUE m_type_str(VALUE self) {
   return rb_str_new_cstr(
       ssh_key_type_to_char(ssh_key_type(libssh_ruby_key_holder(self)->key)));
+}
+
+static VALUE new_rb_string(VALUE cstr) {
+  return rb_str_new_cstr((const char*) cstr);
+}
+
+static VALUE free_ssh_string(VALUE s) {
+  ssh_string_free_char((char*) s);
+  return Qnil;
+}
+
+// Reown a string returned by libssh into a Ruby String. The input string is freed.
+static VALUE ssh_string_to_ruby(char* cstr) {
+  return rb_ensure(new_rb_string, (VALUE) cstr, free_ssh_string, (VALUE) cstr);
+}
+
+static VALUE m_fingerprint(VALUE self) {
+  ssh_key key = libssh_ruby_unwrap_key(self);
+  unsigned char* hash;
+  size_t hlen;
+  if (ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) != SSH_OK)
+    rb_raise(rb_eRuntimeError, "Could not compute key hash.");
+
+  char* fingerprint = ssh_get_fingerprint_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hlen);
+  ssh_clean_pubkey_hash(&hash);
+  return ssh_string_to_ruby(fingerprint);
 }
 
 /*
@@ -119,6 +119,17 @@ static VALUE m_private_p(VALUE self) {
 }
 
 /*
+ * Compare keys for equality or, if one is public and the other private, that
+ * the public key matches the private key.
+ */
+static VALUE m_match(VALUE self, VALUE other) {
+  int rc = ssh_key_cmp(libssh_ruby_unwrap_key(self),
+                       libssh_ruby_unwrap_key(other),
+                       SSH_KEY_CMP_PUBLIC);
+  return rc == 0 ? Qtrue : Qfalse;
+}
+
+/*
  * @overload import_privkey_base64(key_data)
  *  Read a private key from memory. Raises an ArgumentError on invalid data.
  *  @param [String] key_data
@@ -129,6 +140,18 @@ static VALUE m_pki_import_privkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key_da
   ssh_key key;
   if (ssh_pki_import_privkey_base64(StringValueCStr(key_data), NULL, NULL, NULL, &key) != SSH_OK)
     rb_raise(rb_eArgError, "Invalid base64 private key.");
+  return libssh_ruby_wrap_key(key);
+}
+
+static VALUE m_pki_import_pubkey_base64(RB_UNUSED_VAR(VALUE self), VALUE b64_key, VALUE type) {
+  const char* type_string = StringValueCStr(type);
+  enum ssh_keytypes_e type_enum = ssh_key_type_from_name(type_string);
+  if (type_enum == SSH_KEYTYPE_UNKNOWN)
+    rb_raise(rb_eArgError, "Unknown key type: %s.", type_string);
+
+  ssh_key key;
+  if (ssh_pki_import_pubkey_base64(StringValueCStr(b64_key), type_enum, &key) != SSH_OK)
+    rb_raise(rb_eArgError, "Invalid base64 public key.");
   return libssh_ruby_wrap_key(key);
 }
 
@@ -155,17 +178,10 @@ static VALUE m_pki_export_privkey_to_pubkey(RB_UNUSED_VAR(VALUE self), VALUE pri
  *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_pki_export_pubkey_base64
  */
 static VALUE m_pki_export_pubkey_base64(RB_UNUSED_VAR(VALUE self), VALUE key) {
-  KeyHolder *holder = libssh_ruby_key_holder(key);
   char *b64 = NULL;
-  int rc = ssh_pki_export_pubkey_base64(holder->key, &b64);
-  VALUE rv = Qnil;
-  if (rc == SSH_OK) {
-    rv = rb_str_new2(b64);
-  } else {
+  if (ssh_pki_export_pubkey_base64(libssh_ruby_unwrap_key(key), &b64) != SSH_OK)
     rb_raise(rb_eArgError, "Could not export public key into base64.");
-  }
-  SSH_STRING_FREE_CHAR(b64);
-  return rv;
+  return ssh_string_to_ruby(b64);
 }
 
 /*
@@ -192,11 +208,11 @@ void Init_libssh_key(void) {
 #endif
 #undef E
 
-  rb_define_method(rb_cLibSSHKey, "sha1",       m_sha1,       0);
-  rb_define_method(rb_cLibSSHKey, "type",       m_type,       0);
-  rb_define_method(rb_cLibSSHKey, "type_str",   m_type_str,   0);
-  rb_define_method(rb_cLibSSHKey, "public?",    m_public_p,   0);
-  rb_define_method(rb_cLibSSHKey, "private?",   m_private_p,  0);
+  rb_define_method(rb_cLibSSHKey, "type_str",    m_type_str,    0);
+  rb_define_method(rb_cLibSSHKey, "fingerprint", m_fingerprint, 0);
+  rb_define_method(rb_cLibSSHKey, "public?",     m_public_p,    0);
+  rb_define_method(rb_cLibSSHKey, "private?",    m_private_p,   0);
+  rb_define_method(rb_cLibSSHKey, "===",         m_match,       1);
 }
 
 /*
@@ -209,7 +225,9 @@ void Init_libssh_key(void) {
 
 void Init_libssh_pki(void) {
   rb_mLibSSHPKI = rb_define_class_under(rb_mLibSSH, "PKI", rb_cObject);
-  rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64", m_pki_import_privkey_base64, 1);
+
+  rb_define_module_function(rb_mLibSSHPKI, "import_privkey_base64",    m_pki_import_privkey_base64,    1);
+  rb_define_module_function(rb_mLibSSHPKI, "import_pubkey_base64",     m_pki_import_pubkey_base64,     2);
   rb_define_module_function(rb_mLibSSHPKI, "export_privkey_to_pubkey", m_pki_export_privkey_to_pubkey, 1);
-  rb_define_module_function(rb_mLibSSHPKI, "export_pubkey_base64", m_pki_export_pubkey_base64, 1);
+  rb_define_module_function(rb_mLibSSHPKI, "export_pubkey_base64",     m_pki_export_pubkey_base64,     1);
 }
