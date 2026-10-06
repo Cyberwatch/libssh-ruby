@@ -1,5 +1,6 @@
 #include "libssh_ruby.h"
 #include <ruby/thread.h>
+#include <stdatomic.h>
 
 VALUE rb_cLibSSHSession;
 VALUE rb_eLibSSHError;
@@ -87,19 +88,12 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
   return Qnil;
 }
 
-struct nogvl_session_args {
-  ssh_session session;
-  struct libssh_ruby_options *options;
-  const char* error; // Literal only.
-  int rc;
-};
-
-static int authenticate(ssh_session session, struct libssh_ruby_options *options, const char* *error) {
+static int authenticate(ssh_session session, struct libssh_ruby_options *options, libssh_ruby_error *error) {
   if (options->key) {
     if (ssh_userauth_publickey(session, NULL, options->key) == SSH_AUTH_SUCCESS) {
       return SSH_OK;
     } else {
-      *error = "Authentication by key failed.";
+      libssh_ruby_set_error(error, options, "Authentication by key failed.");
       return SSH_ERROR;
     }
   } else if (options->password) {
@@ -119,15 +113,15 @@ static int authenticate(ssh_session session, struct libssh_ruby_options *options
             if (ssh_userauth_kbdint_setanswer(session, 0, options->password) == 0) {
               continue;
             } else {
-              *error = "Could not reply to keyboard-interactive prompt.";
+              libssh_ruby_set_error(error, options, "Could not reply to keyboard-interactive prompt.");
               return SSH_ERROR;
             }
           } else {
-            *error = "Keyboard-interactive authentication requires too many prompts.";
+            libssh_ruby_set_error(error, options, "Keyboard-interactive authentication requires too many prompts.");
             return SSH_ERROR;
           }
         } else {
-          *error = "Keyboard-interactive authentication with password failed.";
+          libssh_ruby_set_error(error, options, "Keyboard-interactive authentication with password failed.");
           return SSH_ERROR;
         }
       }
@@ -135,48 +129,46 @@ static int authenticate(ssh_session session, struct libssh_ruby_options *options
       if (ssh_userauth_password(session, NULL, options->password) == SSH_AUTH_SUCCESS) {
         return SSH_OK;
       } else {
-        *error = "Plain authentication with password failed.";
+        libssh_ruby_set_error(error, options, "Plain authentication with password failed.");
         return SSH_ERROR;
       }
     } else {
-      *error = "Host rejects authentication by password.";
+      libssh_ruby_set_error(error, options, "Host rejects authentication by password.");
       return SSH_ERROR;
     }
   } else {
     if (ssh_userauth_publickey_auto(session, NULL, NULL) == SSH_AUTH_SUCCESS) {
       return SSH_OK;
     } else {
-      *error = "Automatic authentication failed.";
+      libssh_ruby_set_error(error, options, "Automatic authentication failed.");
       return SSH_ERROR;
     }
   }
 }
 
-static int check_host(ssh_session session, const char* *error) {
+static int check_host(ssh_session session, struct libssh_ruby_options *options, libssh_ruby_error *error) {
   enum ssh_known_hosts_e state = ssh_session_is_known_server(session);
   switch (state) {
     case SSH_KNOWN_HOSTS_OK:        return SSH_OK;
-    case SSH_KNOWN_HOSTS_CHANGED:   *error = "Server key differs from known hosts."; break;
-    case SSH_KNOWN_HOSTS_OTHER:     *error = "Server key type differs from known hosts."; break;
-    case SSH_KNOWN_HOSTS_UNKNOWN:   *error = "Server missing from known hosts."; break;
-    case SSH_KNOWN_HOSTS_NOT_FOUND: *error = "Missing known hosts file."; break;
+    case SSH_KNOWN_HOSTS_CHANGED:   libssh_ruby_set_error(error, options, "Server key differs from known hosts."); break;
+    case SSH_KNOWN_HOSTS_OTHER:     libssh_ruby_set_error(error, options, "Server key type differs from known hosts."); break;
+    case SSH_KNOWN_HOSTS_UNKNOWN:   libssh_ruby_set_error(error, options, "Server missing from known hosts."); break;
+    case SSH_KNOWN_HOSTS_NOT_FOUND: libssh_ruby_set_error(error, options, "Missing known hosts file."); break;
     default:
-    case SSH_KNOWN_HOSTS_ERROR:     *error = "Error checking known hosts."; break;
+    case SSH_KNOWN_HOSTS_ERROR:     libssh_ruby_set_error(error, options, "Error checking known hosts.");
   }
   return SSH_ERROR;
 }
 
 static void *nogvl_connect(void *ptr) {
-  struct nogvl_session_args *args = ptr;
-
-  args->rc = ssh_connect(args->session);
-  if (args->rc != SSH_OK) return NULL;
-
-  args->rc = check_host(args->session, &args->error);
-  if (args->rc != SSH_OK) return NULL;
-
-  args->rc = authenticate(args->session, args->options, &args->error);
-  return NULL;
+  struct libssh_ruby_session *holder = ptr;
+  if (ssh_connect(holder->session) != SSH_OK)
+    return (void*) -1;
+  if (check_host(holder->session, holder->options, &holder->error) != SSH_OK)
+    return (void*) -1;
+  if (authenticate(holder->session, holder->options, &holder->error) != SSH_OK)
+    return (void*) -1;
+  return (void*) 0;
 }
 
 /*
@@ -186,26 +178,14 @@ static void *nogvl_connect(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_connect
  */
 static VALUE m_connect(VALUE self) {
-  struct nogvl_session_args args = {
-    .session = libssh_ruby_get_session(self),
-    .options = unwrap_session(self)->options,
-  };
-  rb_thread_call_without_gvl(nogvl_connect, &args, RUBY_UBF_IO, NULL);
-
-  if (args.rc != SSH_OK) {
-    if (args.error)
-      rb_raise(rb_eLibSSHError, "%s", args.error);
-    else
-      libssh_ruby_raise(self);
-  }
-
+  if (rb_thread_call_without_gvl(nogvl_connect, unwrap_session(self), RUBY_UBF_IO, NULL) != 0)
+    libssh_ruby_raise(self);
   return Qnil;
 }
 
-static void *nogvl_disconnect(void *ptr) {
-  struct nogvl_session_args *args = ptr;
-  ssh_disconnect(args->session);
-  args->rc = 0;
+static void* nogvl_disconnect(void *ptr) {
+  struct libssh_ruby_session *holder = ptr;
+  ssh_disconnect(holder->session);
   return NULL;
 }
 
@@ -217,24 +197,23 @@ static void *nogvl_disconnect(void *ptr) {
  *  @see http://api.libssh.org/stable/group__libssh__session.html ssh_disconnect
  */
 static VALUE m_disconnect(VALUE self) {
-  struct nogvl_session_args args;
-
-  args.session = libssh_ruby_get_session(self);
-  rb_thread_call_without_gvl(nogvl_disconnect, &args, RUBY_UBF_IO, NULL);
-
+  rb_thread_call_without_gvl(nogvl_disconnect, unwrap_session(self), RUBY_UBF_IO, NULL);
   return Qnil;
 }
 
 static int proxy_jump_before_connection(ssh_session session, void *userdata) {
   struct libssh_ruby_proxy_jump *jump = userdata;
-  const char* error;
-  return libssh_ruby_apply_options(jump->options, session, &error);
+  return libssh_ruby_apply_options(jump->options, session, jump->error);
+}
+
+static int proxy_jump_verify_knownhost(ssh_session session, void *userdata) {
+  struct libssh_ruby_proxy_jump *jump = userdata;
+  return check_host(session, jump->options, jump->error);
 }
 
 static int proxy_jump_authenticate(ssh_session session, void *userdata) {
   struct libssh_ruby_proxy_jump *jump = userdata;
-  const char *error;
-  return authenticate(session, jump->options, &error);
+  return authenticate(session, jump->options, jump->error);
 }
 
 static void configure_proxy_jumps(VALUE session) {
@@ -267,8 +246,10 @@ static void configure_proxy_jumps(VALUE session) {
   while (jump_options != NULL) {
     jump_struct->callbacks.userdata = jump_struct;
     jump_struct->callbacks.before_connection = proxy_jump_before_connection;
+    jump_struct->callbacks.verify_knownhost = proxy_jump_verify_knownhost;
     jump_struct->callbacks.authenticate = proxy_jump_authenticate;
     jump_struct->options = jump_options;
+    jump_struct->error = &holder->error;
 
     jump_options = jump_options->proxy_jump;
     --jump_struct; // The innermost jump must appear first.
@@ -285,14 +266,13 @@ static void configure_proxy_jumps(VALUE session) {
 
 // LibSSH::Session#set_options(LibSSH::Options)
 static VALUE m_set_options(VALUE self, VALUE value) {
-  struct libssh_ruby_options **options = &unwrap_session(self)->options;
+  struct libssh_ruby_session *session = unwrap_session(self);
+  struct libssh_ruby_options **options = &session->options;
   if (*options) rb_raise(rb_eArgError, "Cannot set options twice.");
   *options = libssh_ruby_clone_options(value);
 
-  ssh_session session = libssh_ruby_get_session(self);
-  const char *error;
-  if (libssh_ruby_apply_options(*options, session, &error) < 0)
-    rb_raise(rb_eArgError, "%s", error);
+  if (libssh_ruby_apply_options(*options, libssh_ruby_get_session(self), &session->error) < 0)
+    libssh_ruby_raise(self);
 
   configure_proxy_jumps(self);
 
@@ -307,9 +287,12 @@ static VALUE m_get_server_publickey(VALUE self) {
   return libssh_ruby_wrap_key(key);
 }
 
-void libssh_ruby_raise(VALUE session) {
-  ssh_session c_session = libssh_ruby_get_session(session);
-  const char* message = ssh_get_error(c_session);
+void libssh_ruby_set_error(libssh_ruby_error *error, struct libssh_ruby_options *context, const char* message) {
+  *error = (struct libssh_ruby_error) { .host = context->host, .message = message };
+}
+
+[[noreturn]] static void raise_libssh_error(VALUE session) {
+  const char* message = ssh_get_error(libssh_ruby_get_session(session));
 
   /* Empty messages are converted to nil so that #to_s defaults to the error type. */
   if (message && message[0] == '\0')
@@ -318,6 +301,16 @@ void libssh_ruby_raise(VALUE session) {
   VALUE argv[1] = { message ? rb_str_new_cstr(message) : Qnil };
   VALUE exception = rb_class_new_instance(1, argv, rb_eLibSSHError);
   rb_exc_raise(exception);
+}
+
+void libssh_ruby_raise(VALUE session) {
+  struct libssh_ruby_session *holder = unwrap_session(session);
+  struct libssh_ruby_error error = atomic_exchange(&holder->error, (struct libssh_ruby_error) {});
+
+  if (error.message)
+    rb_raise(rb_eLibSSHError, "%s (Host: %s)", error.message, error.host);
+  else
+    raise_libssh_error(session);
 }
 
 /*

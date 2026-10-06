@@ -47,12 +47,12 @@ void libssh_ruby_free_options(struct libssh_ruby_options *options) {
  */
 int libssh_ruby_apply_options(struct libssh_ruby_options *options,
                               ssh_session session,
-                              const char* *error) {
+                              libssh_ruby_error *error) {
   if (options->host) {
     // Host is first because it may set the user and port too.
     int rc = ssh_options_set(session, SSH_OPTIONS_HOST, options->host);
     if (rc < 0) {
-      *error = "Invalid host.";
+      libssh_ruby_set_error(error, options, "Invalid host.");
       return rc;
     }
   }
@@ -60,7 +60,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->port) {
     int rc = ssh_options_set(session, SSH_OPTIONS_PORT, &options->port);
     if (rc < 0) {
-      *error = "Invalid port.";
+      libssh_ruby_set_error(error, options, "Invalid port.");
       return rc;
     }
   }
@@ -68,7 +68,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->user) {
     int rc = ssh_options_set(session, SSH_OPTIONS_USER, options->user);
     if (rc < 0) {
-      *error = "Invalid user.";
+      libssh_ruby_set_error(error, options, "Invalid user.");
       return rc;
     }
   }
@@ -76,7 +76,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->timeout) {
     int rc = ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &options->timeout);
     if (rc < 0) {
-      *error = "Invalid timeout.";
+      libssh_ruby_set_error(error, options, "Invalid timeout.");
       return rc;
     }
   }
@@ -84,7 +84,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->key_exchange) {
     int rc = ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, options->key_exchange);
     if (rc < 0) {
-      *error = "Invalid key exchange methods.";
+      libssh_ruby_set_error(error, options, "Invalid key exchange methods.");
       return rc;
     }
   }
@@ -92,7 +92,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->hmac_c_s) {
     int rc = ssh_options_set(session, SSH_OPTIONS_HMAC_C_S, options->hmac_c_s);
     if (rc < 0) {
-      *error = "Invalid client-to-server HMAC algorithms.";
+      libssh_ruby_set_error(error, options, "Invalid client-to-server HMAC algorithms.");
       return rc;
     }
   }
@@ -100,7 +100,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->hmac_s_c) {
     int rc = ssh_options_set(session, SSH_OPTIONS_HMAC_S_C, options->hmac_s_c);
     if (rc < 0) {
-      *error = "Invalid server-to-client HMAC algorithms.";
+      libssh_ruby_set_error(error, options, "Invalid server-to-client HMAC algorithms.");
       return rc;
     }
   }
@@ -108,7 +108,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->hostkeys) {
     int rc = ssh_options_set(session, SSH_OPTIONS_HOSTKEYS, options->hostkeys);
     if (rc < 0) {
-      *error = "Invalid server host key types.";
+      libssh_ruby_set_error(error, options, "Invalid server host key types.");
       return rc;
     }
   }
@@ -116,7 +116,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->publickey_accepted_types) {
     int rc = ssh_options_set(session, SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES, options->publickey_accepted_types);
     if (rc < 0) {
-      *error = "Invalid public key algorithms.";
+      libssh_ruby_set_error(error, options, "Invalid public key algorithms.");
       return rc;
     }
   }
@@ -124,7 +124,7 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
   if (options->stricthostkeycheck != -1) {
     int rc = ssh_options_set(session, SSH_OPTIONS_STRICTHOSTKEYCHECK, &options->stricthostkeycheck);
     if (rc < 0) {
-      *error = "Invalid strict host key check flag.";
+      libssh_ruby_set_error(error, options, "Invalid strict host key check flag.");
       return rc;
     }
   }
