@@ -2,6 +2,7 @@
 #include <ruby/thread.h>
 
 VALUE rb_cLibSSHSession;
+VALUE rb_eLibSSHError;
 
 static ID id_none, id_warn, id_info, id_debug, id_trace;
 static ID id_password, id_key;
@@ -81,7 +82,7 @@ static VALUE m_set_log_verbosity(VALUE self, VALUE verbosity) {
 
   ssh_session session = libssh_ruby_get_session(self);
   if (ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &c_verbosity) == SSH_ERROR)
-    libssh_ruby_raise(session);
+    libssh_ruby_raise(self);
 
   return Qnil;
 }
@@ -190,7 +191,14 @@ static VALUE m_connect(VALUE self) {
     .options = unwrap_session(self)->options,
   };
   rb_thread_call_without_gvl(nogvl_connect, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == SSH_ERROR) libssh_ruby_raise_message(args.session, args.error);
+
+  if (args.rc != SSH_OK) {
+    if (args.error)
+      rb_raise(rb_eLibSSHError, "%s", args.error);
+    else
+      libssh_ruby_raise(self);
+  }
+
   return Qnil;
 }
 
@@ -251,7 +259,7 @@ static void configure_proxy_jumps(VALUE session) {
 
   int rc = ssh_options_set(holder->session, SSH_OPTIONS_PROXYJUMP, holder->proxy_jump_uris);
   if (rc != 0)
-    libssh_ruby_raise(libssh_ruby_get_session(session));
+    libssh_ruby_raise(session);
 
   holder->proxy_jumps = RB_ZALLOC_N(struct libssh_ruby_proxy_jump, jump_count);
   struct libssh_ruby_options *jump_options = options->proxy_jump;
@@ -271,7 +279,7 @@ static void configure_proxy_jumps(VALUE session) {
                          SSH_OPTIONS_PROXYJUMP_CB_LIST_APPEND,
                          &holder->proxy_jumps[i].callbacks);
     if (rc != 0)
-      libssh_ruby_raise(libssh_ruby_get_session(session));
+      libssh_ruby_raise(session);
   }
 }
 
@@ -295,8 +303,21 @@ static VALUE m_get_server_publickey(VALUE self) {
   ssh_session session = libssh_ruby_get_session(self);
   ssh_key key;
   if (ssh_get_server_publickey(session, &key) < 0)
-    libssh_ruby_raise(session);
+    libssh_ruby_raise(self);
   return libssh_ruby_wrap_key(key);
+}
+
+void libssh_ruby_raise(VALUE session) {
+  ssh_session c_session = libssh_ruby_get_session(session);
+  const char* message = ssh_get_error(c_session);
+
+  /* Empty messages are converted to nil so that #to_s defaults to the error type. */
+  if (message && message[0] == '\0')
+    message = NULL;
+
+  VALUE argv[1] = { message ? rb_str_new_cstr(message) : Qnil };
+  VALUE exception = rb_class_new_instance(1, argv, rb_eLibSSHError);
+  rb_exc_raise(exception);
 }
 
 /*
@@ -326,4 +347,6 @@ void Init_libssh_session(void) {
   rb_define_method(rb_cLibSSHSession, "get_server_publickey", m_get_server_publickey, 0);
 
   rb_define_private_method(rb_cLibSSHSession, "set_options", m_set_options, 1);
+
+  rb_eLibSSHError = rb_define_class_under(rb_mLibSSH, "Error", rb_eStandardError);
 }

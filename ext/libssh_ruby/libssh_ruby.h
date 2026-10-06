@@ -14,7 +14,6 @@ void Init_libssh_ruby(void);
 void Init_libssh_options(void);
 void Init_libssh_session(void);
 void Init_libssh_channel(void);
-void Init_libssh_error(void);
 void Init_libssh_key(void);
 void Init_libssh_pki(void);
 
@@ -54,8 +53,8 @@ struct libssh_ruby_session {
 };
 
 ssh_session libssh_ruby_get_session(VALUE session);
-[[noreturn]] void libssh_ruby_raise(ssh_session session);
-[[noreturn]] void libssh_ruby_raise_message(ssh_session session, const char* message);
+
+[[noreturn]] void libssh_ruby_raise(VALUE session);
 
 // Moves an ssh_key’s ownership into a LibSSH::Key. Frees the key on error.
 VALUE libssh_ruby_wrap_key(ssh_key key);
