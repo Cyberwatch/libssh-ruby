@@ -26,7 +26,8 @@ RSpec.describe LibSSH::Session do
     end
 
     it "raises an exception on bad host" do
-      expect { build(host: "foo_bar") }.to raise_error ArgumentError, "Invalid host."
+      expect { build(host: "foo_bar") }.to raise_error \
+        LibSSH::Error, "Invalid host. (Host: foo_bar)"
     end
 
     specify "full options" do
@@ -74,16 +75,23 @@ RSpec.describe LibSSH::Session do
 
     specify "host key checking" do
       expect { build(password: SshHelper.password, stricthostkeycheck: true).connect }.to \
-        raise_error LibSSH::Error, "Server missing from known hosts."
+        raise_error LibSSH::Error, "Server missing from known hosts. (Host: localhost)"
     end
 
     specify "proxy jumps" do
       credentials = { user: SshHelper.user, password: SshHelper.password }
-      options =   { host: "127.0.0.1",    port: 2222,              **credentials, stricthostkeycheck: false }
-      good_jump = { host: SshHelper.host, port: DockerHelper.port, **credentials, stricthostkeycheck: false }
-      bad_jump = { **good_jump, password: "bad" }
-      expect { build(**options, proxy_jump: good_jump).connect }.not_to raise_error
-      expect { build(**options, proxy_jump: bad_jump).connect }.to raise_error LibSSH::Error
+      options     = { host: "127.0.0.1", port: 2222,              **credentials, stricthostkeycheck: false }
+      jump        = { host: "localhost", port: DockerHelper.port, **credentials, stricthostkeycheck: false }
+
+      expect { build(**options, proxy_jump: jump).connect }.not_to raise_error
+
+      # Error reporting from each of the callbacks.
+      expect { build(**options, proxy_jump: { **jump, host: "%bad" }).connect }.to raise_error \
+        LibSSH::Error, "Invalid host. (Host: %bad)"
+      expect { build(**options, proxy_jump: { **jump, stricthostkeycheck: true }).connect }.to raise_error \
+        LibSSH::Error, "Server missing from known hosts. (Host: localhost)"
+      expect { build(**options, proxy_jump: { **jump, password: "bad" }).connect }.to raise_error \
+        LibSSH::Error, "Keyboard-interactive authentication with password failed. (Host: localhost)"
     end
   end
 
