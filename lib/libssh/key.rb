@@ -2,6 +2,16 @@ require 'libssh/libssh_ruby'
 
 module LibSSH
   class Key
+    def self.new(data)
+      if data.start_with?("-")
+        PKI.import_privkey_base64(data)
+      else
+        type, base64 = data.split
+        raise ArgumentError, "Malformed SSH key." if base64.nil?
+        PKI.import_pubkey_base64(base64, type)
+      end
+    end
+
     # Return the hash in SHA1 in hexadecimal notation.
     # @return [String]
     # @see #sha1
@@ -11,11 +21,19 @@ module LibSSH
     end
 
     def to_s
-      if public?
-        "#{type_str} #{LibSSH::PKI.export_pubkey_base64(self)}"
+      if private?
+       raise NotImplementedError, "private key export"
       else
-       raise NotImplementedError "private key export"
+        "#{type_str} #{LibSSH::PKI.export_pubkey_base64(self)}"
       end
     end
+
+    def ==(other)
+      other = LibSSH::Key(other)
+      self.private? == other.private?
+        && self === other
+    end
   end
+
+  def self.Key(key) = key.is_a?(Key) ? key : Key.new(key)
 end
