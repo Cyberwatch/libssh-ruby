@@ -1,10 +1,6 @@
 #include "libssh_ruby.h"
 #include <ruby/thread.h>
 
-#define RAISE_IF_ERROR(rc) \
-  if ((rc) == SSH_ERROR)   \
-  libssh_ruby_raise(ssh_channel_get_session(holder->channel))
-
 VALUE rb_cLibSSHChannel;
 
 static ID id_stderr, id_timeout;
@@ -13,11 +9,12 @@ static void channel_mark(void *);
 static void channel_free(void *);
 static size_t channel_memsize(const void *);
 
-struct ChannelHolderStruct {
+struct libssh_ruby_channel {
   ssh_channel channel;
   VALUE session;
 };
-typedef struct ChannelHolderStruct ChannelHolder;
+
+typedef struct libssh_ruby_channel ChannelHolder;
 
 static const rb_data_type_t channel_type = {
     "ssh_channel",
@@ -57,10 +54,14 @@ static size_t channel_memsize(RB_UNUSED_VAR(const void *arg)) {
   return sizeof(ChannelHolder);
 }
 
-static ssh_channel get_ssh_channel(VALUE channel) {
+static struct libssh_ruby_channel* unwrap_channel(VALUE channel) {
   ChannelHolder *holder;
   TypedData_Get_Struct(channel, ChannelHolder, &channel_type, holder);
-  return holder->channel;
+  return holder;
+}
+
+static ssh_channel get_ssh_channel(VALUE channel) {
+  return unwrap_channel(channel)->channel;
 }
 
 /* @overload initialize(session)
@@ -102,7 +103,7 @@ static VALUE m_close(VALUE self) {
   TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_close, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
 
   return Qnil;
 }
@@ -135,7 +136,7 @@ static VALUE m_open_session(VALUE self) {
   }
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_open_session, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
 
   if (rb_block_given_p()) {
     return rb_ensure(rb_yield, Qnil, m_close, self);
@@ -180,7 +181,7 @@ static VALUE m_open_forward(VALUE self, VALUE remote_host, VALUE remote_port) {
   args.remote_port = FIX2INT(remote_port);
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_open_forward, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
 
   if (rb_block_given_p()) {
     return rb_ensure(rb_yield, Qnil, m_close, self);
@@ -218,7 +219,7 @@ static VALUE m_request_exec(VALUE self, VALUE cmd) {
   args.channel = holder->channel;
   args.cmd = StringValueCStr(cmd);
   rb_thread_call_without_gvl(nogvl_request_exec, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
   return Qnil;
 }
 
@@ -242,7 +243,7 @@ static VALUE m_request_pty(VALUE self) {
   TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_request_pty, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
   return Qnil;
 }
 
@@ -258,7 +259,7 @@ static VALUE m_request_send_signal(VALUE self, VALUE signal) {
   ChannelHolder *holder;
   TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
   int rc = ssh_channel_request_send_signal(holder->channel, StringValueCStr(signal));
-  RAISE_IF_ERROR(rc);
+  if (rc == SSH_ERROR) libssh_ruby_raise(holder->session);
   return Qnil;
 }
 
@@ -467,7 +468,7 @@ static VALUE m_poll(int argc, VALUE *argv, VALUE self) {
 
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_poll, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
 
   if (args.rc == SSH_EOF) {
     return Qnil;
@@ -503,7 +504,7 @@ static VALUE m_get_exit_status(VALUE self) {
   rb_thread_call_without_gvl(nogvl_get_exit_status, &args, RUBY_UBF_IO, NULL);
 
   switch (args.rc) {
-    case SSH_ERROR: libssh_ruby_raise(ssh_channel_get_session(args.channel));
+    case SSH_ERROR: libssh_ruby_raise(unwrap_channel(self)->session);
     case SSH_OK:    return INT2FIX(args.pexit_code);
     default:        return Qnil; // SSH_AGAIN
   }
@@ -540,7 +541,7 @@ static VALUE m_write(VALUE self, VALUE data) {
   args.data = RSTRING_PTR(data);
   args.len = RSTRING_LEN(data);
   rb_thread_call_without_gvl(nogvl_write, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
   return INT2FIX(args.rc);
 }
 
@@ -564,7 +565,7 @@ static VALUE m_send_eof(VALUE self) {
   TypedData_Get_Struct(self, ChannelHolder, &channel_type, holder);
   args.channel = holder->channel;
   rb_thread_call_without_gvl(nogvl_send_eof, &args, RUBY_UBF_IO, NULL);
-  RAISE_IF_ERROR(args.rc);
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(holder->session);
   return Qnil;
 }
 
@@ -593,7 +594,7 @@ static VALUE m_wait_timeout(VALUE self, VALUE timeout) {
   }
 
   rb_thread_call_without_gvl(nogvl_wait_timeout, &args, RUBY_UBF_IO, NULL);
-  if (args.rc == SSH_ERROR) libssh_ruby_raise(ssh_channel_get_session(args.channel));
+  if (args.rc == SSH_ERROR) libssh_ruby_raise(unwrap_channel(self)->session);
   return Qnil;
 }
 
