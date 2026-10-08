@@ -18,6 +18,7 @@ module LibSSH
   #       hostkeys: "ssh-rsa,…",
   #       publickey_accepted_types: "ssh-rsa,…",
   #       stricthostkeycheck: false,
+  #       host_publickey: "ssh-ed25519 …",
   #
   #       # Authentication
   #       password: "topsecret",
@@ -29,14 +30,26 @@ module LibSSH
   class Options
     attr_accessor :user, :host, :port, :timeout, :key_exchange, :hmac_c_s,
                   :hmac_s_c, :hostkeys, :publickey_accepted_types,
-                  :stricthostkeycheck, :password, :key
+                  :stricthostkeycheck, :password
 
-    attr_reader :proxy_jump
+    attr_reader :host_publickey, :key, :proxy_jump
 
     def initialize(attrs)
       attrs.each do |key, value|
         send("#{key}=", value)
       end
+    end
+
+    def host_publickey=(key)
+      key = LibSSH::Key(key)
+      raise ArgumentError, "Not a public key." unless key.public?
+      @host_publickey = key
+    end
+
+    def key=(key)
+      key = LibSSH::Key(key)
+      raise ArgumentError, "Not a private key." unless key.private?
+      @key = key
     end
 
     def proxy_jump=(options)

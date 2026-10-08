@@ -146,7 +146,7 @@ static int authenticate(ssh_session session, struct libssh_ruby_options *options
   }
 }
 
-static int check_host(ssh_session session, struct libssh_ruby_options *options, libssh_ruby_error *error) {
+static int check_known_hosts(ssh_session session, struct libssh_ruby_options *options, libssh_ruby_error *error) {
   enum ssh_known_hosts_e state = ssh_session_is_known_server(session);
   switch (state) {
     case SSH_KNOWN_HOSTS_OK:        return SSH_OK;
@@ -158,6 +158,24 @@ static int check_host(ssh_session session, struct libssh_ruby_options *options, 
     case SSH_KNOWN_HOSTS_ERROR:     libssh_ruby_set_error(error, options, "Error checking known hosts.");
   }
   return SSH_ERROR;
+}
+
+static int check_host(ssh_session session, struct libssh_ruby_options *options, libssh_ruby_error *error) {
+  if (!options->host_publickey)
+    return check_known_hosts(session, options, error);
+
+  ssh_key server_publickey;
+  if (ssh_get_server_publickey(session, &server_publickey) != SSH_OK) {
+    libssh_ruby_set_error(error, options, "Could not get the server's public key.");
+    return SSH_ERROR;
+  }
+
+  if (ssh_key_cmp(server_publickey, options->host_publickey, SSH_KEY_CMP_PUBLIC) == 0) {
+    return SSH_OK;
+  } else {
+    libssh_ruby_set_error(error, options, "Server does not have the expected public key.");
+    return SSH_ERROR;
+  }
 }
 
 static void *nogvl_connect(void *ptr) {

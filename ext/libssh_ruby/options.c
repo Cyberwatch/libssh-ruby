@@ -2,7 +2,8 @@
 
 static ID id_host, id_port, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
           id_hmac_s_c, id_hostkeys, id_publickey_accepted_types,
-          id_stricthostkeycheck, id_password, id_key, id_proxy_jump;
+          id_stricthostkeycheck, id_host_publickey, id_password, id_key,
+          id_proxy_jump;
 
 void Init_libssh_options(void) {
   id_host                     = rb_intern("host");
@@ -15,6 +16,7 @@ void Init_libssh_options(void) {
   id_hostkeys                 = rb_intern("hostkeys");
   id_publickey_accepted_types = rb_intern("publickey_accepted_types");
   id_stricthostkeycheck       = rb_intern("stricthostkeycheck");
+  id_host_publickey           = rb_intern("host_publickey");
   id_password                 = rb_intern("password");
   id_key                      = rb_intern("key");
   id_proxy_jump               = rb_intern("proxy_jump");
@@ -33,6 +35,7 @@ void libssh_ruby_free_options(struct libssh_ruby_options *options) {
   ruby_xfree(options->hmac_s_c);
   ruby_xfree(options->hostkeys);
   ruby_xfree(options->publickey_accepted_types);
+  ssh_key_free(options->host_publickey);
   ruby_xfree(options->password);
   ssh_key_free(options->key);
   libssh_ruby_free_options(options->proxy_jump);
@@ -170,15 +173,7 @@ static int get_bool(VALUE options, ID name) {
 
 static ssh_key get_key(VALUE options, ID name) {
   VALUE value = rb_funcallv_public(options, name, 0, NULL);
-  if (NIL_P(value))
-    return NULL;
-
-  ssh_key key = NULL;
-  int rc = ssh_pki_import_privkey_base64(StringValueCStr(value), NULL, NULL, NULL, &key);
-  if (rc != SSH_OK)
-    rb_raise(rb_eArgError, "Invalid base64 private key.");
-
-  return key;
+  return NIL_P(value) ? NULL : ssh_key_dup(libssh_ruby_unwrap_key(value));
 }
 
 static struct libssh_ruby_options* get_options(VALUE options, ID name) {
@@ -201,6 +196,7 @@ static VALUE copy_options(VALUE data) {
   out->hostkeys                 = get_string (in, id_hostkeys);
   out->publickey_accepted_types = get_string (in, id_publickey_accepted_types);
   out->stricthostkeycheck       = get_bool   (in, id_stricthostkeycheck);
+  out->host_publickey           = get_key    (in, id_host_publickey);
   out->password                 = get_string (in, id_password);
   out->key                      = get_key    (in, id_key);
   out->proxy_jump               = get_options(in, id_proxy_jump);

@@ -53,7 +53,7 @@ RSpec.describe LibSSH::Session do
     end
 
     specify "public key" do
-      expect { build(key: "bad key").connect }.to raise_error \
+      expect { build(key: "-----BEGIN OPENSSH PRIVATE KEY-----\nbad key").connect }.to raise_error \
         ArgumentError, "Invalid base64 private key."
 
       expect { build(key: File.read("spec/ssh_host_ed25519_key")).connect }.to raise_error \
@@ -76,6 +76,16 @@ RSpec.describe LibSSH::Session do
     specify "host key checking" do
       expect { build(password: SshHelper.password, stricthostkeycheck: true).connect }.to \
         raise_error LibSSH::Error, "Server missing from known hosts. (Host: localhost)"
+    end
+
+    specify "host public key" do
+      options = { password: SshHelper.password, stricthostkeycheck: true,
+                  host_publickey: File.read("spec/ssh_host_ed25519_key.pub") }
+      expect { build(options).connect }.not_to raise_error
+
+      options[:host_publickey] = File.read("spec/id_ed25519.pub")
+      expect { build(options).connect }.to \
+        raise_error LibSSH::Error, "Server does not have the expected public key. (Host: localhost)"
     end
 
     specify "proxy jumps" do

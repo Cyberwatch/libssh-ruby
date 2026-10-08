@@ -38,6 +38,8 @@ struct libssh_ruby_options {
   char*        hostkeys;                  // SSH_OPTIONS_HOSTKEYS
   char*        publickey_accepted_types;  // SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES
   int          stricthostkeycheck;        // SSH_OPTIONS_STRICTHOSTKEYCHECK
+
+  ssh_key      host_publickey;
   char*        password;
   ssh_key      key;
 
@@ -70,5 +72,6 @@ void libssh_ruby_set_error(libssh_ruby_error *error, struct libssh_ruby_options 
 
 // Moves an ssh_key’s ownership into a LibSSH::Key. Frees the key on error.
 VALUE libssh_ruby_wrap_key(ssh_key key);
+ssh_key libssh_ruby_unwrap_key(VALUE key);
 
 #endif /* LIBSSH_RUBY_H */
