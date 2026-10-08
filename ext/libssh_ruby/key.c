@@ -56,7 +56,7 @@ static struct libssh_ruby_key *libssh_ruby_key_holder(VALUE key) {
   return holder;
 }
 
-static ssh_key libssh_ruby_unwrap_key(VALUE key) {
+ssh_key libssh_ruby_unwrap_key(VALUE key) {
   return libssh_ruby_key_holder(key)->key;
 }
 
