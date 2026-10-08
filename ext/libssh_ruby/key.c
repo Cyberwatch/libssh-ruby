@@ -60,16 +60,9 @@ static ssh_key libssh_ruby_unwrap_key(VALUE key) {
   return libssh_ruby_key_holder(key)->key;
 }
 
-/*
- * @overload type_str
- *  Return the type of a SSH key in string format.
- *  @return [String]
- *  @see http://api.libssh.org/stable/group__libssh__pki.html ssh_key_type and
- *    ssh_key_type_to_char
- */
-static VALUE m_type_str(VALUE self) {
-  return rb_str_new_cstr(
-      ssh_key_type_to_char(ssh_key_type(libssh_ruby_key_holder(self)->key)));
+static VALUE m_type(VALUE self) {
+  enum ssh_keytypes_e type = ssh_key_type(libssh_ruby_unwrap_key(self));
+  return rb_str_new_cstr(ssh_key_type_to_char(type));
 }
 
 static VALUE new_rb_string(VALUE cstr) {
@@ -208,7 +201,7 @@ void Init_libssh_key(void) {
 #endif
 #undef E
 
-  rb_define_method(rb_cLibSSHKey, "type_str",    m_type_str,    0);
+  rb_define_method(rb_cLibSSHKey, "type",        m_type,        0);
   rb_define_method(rb_cLibSSHKey, "fingerprint", m_fingerprint, 0);
   rb_define_method(rb_cLibSSHKey, "public?",     m_public_p,    0);
   rb_define_method(rb_cLibSSHKey, "private?",    m_private_p,   0);
