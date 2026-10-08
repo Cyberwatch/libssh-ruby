@@ -23,6 +23,19 @@ RSpec.describe LibSSH::Key do
     end
   end
 
+  describe "#to_publickey" do
+    specify "on a private key" do
+      privkey = LibSSH::Key.new(File.read("spec/id_ed25519"))
+      pubkey  = LibSSH::Key.new(File.read("spec/id_ed25519.pub"))
+      expect(privkey.to_publickey).to eq pubkey
+    end
+
+    specify "on a public key" do
+      pubkey = LibSSH::Key.new(File.read("spec/id_ed25519.pub"))
+      expect { pubkey.to_publickey }.to raise_error ArgumentError, "Not a private key."
+    end
+  end
+
   describe "#to_s" do
     specify "on public key" do
       key_data = File.read("spec/id_ed25519.pub")

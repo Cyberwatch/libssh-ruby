@@ -20,11 +20,16 @@ module LibSSH
       sha1.unpack('H*')[0].each_char.each_slice(2).map(&:join).join(':')
     end
 
+    def to_publickey
+      raise ArgumentError, "Not a private key." unless private?
+      LibSSH::PKI.export_privkey_to_pubkey(self)
+    end
+
     def to_s
       if private?
        raise NotImplementedError, "private key export"
       else
-        "#{type_str} #{LibSSH::PKI.export_pubkey_base64(self)}"
+        "#{type} #{LibSSH::PKI.export_pubkey_base64(self)}"
       end
     end
 

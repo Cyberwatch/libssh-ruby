@@ -8,7 +8,7 @@ RSpec.describe LibSSH::PKI do
   describe '.import_privkey_base64' do
     it 'loads a LibSSH::Key' do
       expect(privkey).to be_a LibSSH::Key
-      expect(privkey.type_str).to eq 'ssh-ed25519'
+      expect(privkey.type).to eq 'ssh-ed25519'
     end
 
     it 'raises ArgumentError on bad key' do
@@ -21,7 +21,7 @@ RSpec.describe LibSSH::PKI do
 
     specify "on valid key" do
       pubkey = LibSSH::PKI.import_pubkey_base64(ed25519_data, "ssh-ed25519")
-      expect(pubkey.type_str).to eq 'ssh-ed25519'
+      expect(pubkey.type).to eq 'ssh-ed25519'
       expect(LibSSH::PKI.export_pubkey_base64(pubkey)).to eq ed25519_data
     end
 
@@ -38,7 +38,7 @@ RSpec.describe LibSSH::PKI do
 
   specify '.export_privkey_to_pubkey' do
     pubkey = LibSSH::PKI.export_privkey_to_pubkey(privkey)
-    expect(pubkey.type_str).to eq 'ssh-ed25519'
+    expect(pubkey.type).to eq 'ssh-ed25519'
     expect(LibSSH::PKI.export_pubkey_base64(pubkey)).to eq \
       'AAAAC3NzaC1lZDI1NTE5AAAAIPuI+rpberfNkVz6Gf4QiUKYz3erfLZ5B4WxBge4I9Ax'
   end
