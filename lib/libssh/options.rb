@@ -41,19 +41,26 @@ module LibSSH
     end
 
     def host_publickey=(key)
-      key = LibSSH::Key(key)
-      raise ArgumentError, "Not a public key." unless key.public?
+      unless key.nil?
+        key = LibSSH::Key(key)
+        raise ArgumentError, "Not a public key." unless key.public?
+      end
       @host_publickey = key
     end
 
     def key=(key)
-      key = LibSSH::Key(key)
-      raise ArgumentError, "Not a private key." unless key.private?
+      unless key.nil?
+        key = LibSSH::Key(key)
+        raise ArgumentError, "Not a private key." unless key.private?
+      end
       @key = key
     end
 
     def proxy_jump=(options)
-      @proxy_jump = LibSSH::Options(options)
+      unless options.nil?
+        options = LibSSH::Options(options)
+      end
+      @proxy_jump = options
     end
   end
 
