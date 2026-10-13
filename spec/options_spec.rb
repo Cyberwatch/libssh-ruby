@@ -17,6 +17,12 @@ RSpec.describe LibSSH::Options do
       expect { described_class.new(host_publickey: "boom") }.to \
         raise_error ArgumentError, "Malformed SSH key."
     end
+
+    it "is nullable" do
+      options = described_class.new(host_publickey: File.read("spec/ssh_host_ed25519_key.pub"))
+      options.host_publickey = nil
+      expect(options.host_publickey).to be nil
+    end
   end
 
   describe "#key" do
@@ -33,6 +39,25 @@ RSpec.describe LibSSH::Options do
     specify "with invalid data" do
       expect { described_class.new(key: "boom") }.to \
         raise_error ArgumentError, "Malformed SSH key."
+    end
+
+    it "is nullable" do
+      options = described_class.new(key: File.read("spec/id_ed25519"))
+      options.key = nil
+      expect(options.key).to be nil
+    end
+  end
+
+  describe "#proxy_jump" do
+    it "is cast into Options" do
+      options = described_class.new(proxy_jump: {})
+      expect(options.proxy_jump).to be_a LibSSH::Options
+    end
+
+    it "is nullable" do
+      options = described_class.new(proxy_jump: {})
+      options.proxy_jump = nil
+      expect(options.proxy_jump).to be nil
     end
   end
 end
