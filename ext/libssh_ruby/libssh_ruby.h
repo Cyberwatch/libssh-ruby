@@ -17,14 +17,7 @@ void Init_libssh_channel(void);
 void Init_libssh_key(void);
 void Init_libssh_pki(void);
 
-struct libssh_ruby_error {
-  const char* host;    // Borrowed from libssh_ruby_options.
-  const char* message; // Static literal.
-};
-
-// libssh_ruby_session’s error is accessed from multiple threads, each proxy
-// jump having its own.
-typedef _Atomic struct libssh_ruby_error libssh_ruby_error;
+typedef struct libssh_ruby_error libssh_ruby_error;
 
 // C equivalent of LibSSH::Options.
 struct libssh_ruby_options {
@@ -49,21 +42,6 @@ struct libssh_ruby_options {
 struct libssh_ruby_options* libssh_ruby_clone_options(VALUE options);
 int libssh_ruby_apply_options(struct libssh_ruby_options *options, ssh_session session, libssh_ruby_error *error);
 void libssh_ruby_free_options(struct libssh_ruby_options *options);
-
-struct libssh_ruby_proxy_jump {
-  struct ssh_jump_callbacks_struct callbacks;
-  struct libssh_ruby_options *options; // Borrowed.
-  libssh_ruby_error *error; // From the root libssh_ruby_session.
-};
-
-// Underlying structure behind LibSSH::Session.
-struct libssh_ruby_session {
-  ssh_session session;
-  struct libssh_ruby_options *options;
-  struct libssh_ruby_proxy_jump *proxy_jumps;
-  char* proxy_jump_uris;
-  libssh_ruby_error error;
-};
 
 ssh_session libssh_ruby_get_session(VALUE session);
 

@@ -1,6 +1,30 @@
 #include "libssh_ruby.h"
+#include <pthread.h>
 #include <ruby/thread.h>
-#include <stdatomic.h>
+
+struct libssh_ruby_error {
+  // libssh_ruby_session’s error is accessed from multiple threads, each proxy
+  // jump having its own.
+  pthread_mutex_t mutex;
+
+  const char* host;    // Borrowed from libssh_ruby_options.
+  const char* message; // Static literal.
+};
+
+struct libssh_ruby_proxy_jump {
+  struct ssh_jump_callbacks_struct callbacks;
+  struct libssh_ruby_options *options; // Borrowed.
+  libssh_ruby_error *error; // From the root libssh_ruby_session.
+};
+
+// Underlying structure behind LibSSH::Session.
+struct libssh_ruby_session {
+  ssh_session session;
+  struct libssh_ruby_options *options;
+  struct libssh_ruby_proxy_jump *proxy_jumps;
+  char* proxy_jump_uris;
+  libssh_ruby_error error;
+};
 
 VALUE rb_cLibSSHSession;
 VALUE rb_eLibSSHError;
@@ -34,6 +58,7 @@ static VALUE session_alloc(VALUE klass) {
   struct libssh_ruby_session *holder;
   VALUE object = TypedData_Make_Struct(klass, struct libssh_ruby_session, &session_type, holder);
   holder->session = ssh_new();
+  pthread_mutex_init(&holder->error.mutex, NULL);
   return object;
 }
 
@@ -42,6 +67,7 @@ static void session_mark(RB_UNUSED_VAR(void *arg)) {}
 static void session_free(void *arg) {
   struct libssh_ruby_session *holder = arg;
   ssh_free(holder->session);
+  pthread_mutex_destroy(&holder->error.mutex);
   libssh_ruby_free_options(holder->options);
   ruby_xfree(holder->proxy_jumps);
   ruby_xfree(holder->proxy_jump_uris);
@@ -306,7 +332,10 @@ static VALUE m_get_server_publickey(VALUE self) {
 }
 
 void libssh_ruby_set_error(libssh_ruby_error *error, struct libssh_ruby_options *context, const char* message) {
-  *error = (struct libssh_ruby_error) { .host = context->host, .message = message };
+  pthread_mutex_lock(&error->mutex);
+  error->host = context->host;
+  error->message = message;
+  pthread_mutex_unlock(&error->mutex);
 }
 
 [[noreturn]] static void raise_libssh_error(VALUE session) {
@@ -322,11 +351,17 @@ void libssh_ruby_set_error(libssh_ruby_error *error, struct libssh_ruby_options 
 }
 
 void libssh_ruby_raise(VALUE session) {
-  struct libssh_ruby_session *holder = unwrap_session(session);
-  struct libssh_ruby_error error = atomic_exchange(&holder->error, (struct libssh_ruby_error) {});
+  struct libssh_ruby_error *error = &unwrap_session(session)->error;
 
-  if (error.message)
-    rb_raise(rb_eLibSSHError, "%s (Host: %s)", error.message, error.host);
+  pthread_mutex_lock(&error->mutex);
+  const char* host = error->host;
+  const char* message = error->message;
+  error->host = NULL;
+  error->message = NULL;
+  pthread_mutex_unlock(&error->mutex);
+
+  if (message)
+    rb_raise(rb_eLibSSHError, "%s (Host: %s)", message, host);
   else
     raise_libssh_error(session);
 }
