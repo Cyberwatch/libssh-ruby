@@ -323,10 +323,12 @@ void libssh_ruby_set_error(libssh_ruby_error *error, struct libssh_ruby_options 
 
 void libssh_ruby_raise(VALUE session) {
   struct libssh_ruby_session *holder = unwrap_session(session);
-  struct libssh_ruby_error error = atomic_exchange(&holder->error, (struct libssh_ruby_error) {});
 
-  if (error.message)
-    rb_raise(rb_eLibSSHError, "%s (Host: %s)", error.message, error.host);
+  const char *host    = atomic_exchange(&holder->error.host,    NULL);
+  const char *message = atomic_exchange(&holder->error.message, NULL);
+
+  if (message)
+    rb_raise(rb_eLibSSHError, "%s (Host: %s)", message, host);
   else
     raise_libssh_error(session);
 }

@@ -18,13 +18,13 @@ void Init_libssh_key(void);
 void Init_libssh_pki(void);
 
 struct libssh_ruby_error {
-  const char* host;    // Borrowed from libssh_ruby_options.
-  const char* message; // Static literal.
+  const char* _Atomic host;    // Borrowed from libssh_ruby_options.
+  const char* _Atomic message; // Static literal.
 };
 
 // libssh_ruby_session’s error is accessed from multiple threads, each proxy
 // jump having its own.
-typedef _Atomic struct libssh_ruby_error libssh_ruby_error;
+typedef struct libssh_ruby_error libssh_ruby_error;
 
 // C equivalent of LibSSH::Options.
 struct libssh_ruby_options {
