@@ -4,6 +4,7 @@ require 'English'
 require 'fileutils'
 require 'json'
 require 'libssh'
+require 'socket'
 
 module DockerHelper
   SPAWN_SSHD = <<~'SH'

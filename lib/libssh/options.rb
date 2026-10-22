@@ -8,6 +8,7 @@ module LibSSH
   #       user: "alice",
   #       host: "localhost",
   #       port: 22,
+  #       fd: socket.fileno, # Already connected socket, owned by the caller.
   #       timeout: 5, # seconds
   #       proxy_jump: LibSSH::Options.new(…),
   #
@@ -28,7 +29,7 @@ module LibSSH
   # See also libssh’s documentation for ssh_options_set.
   #
   class Options
-    attr_accessor :user, :host, :port, :timeout, :key_exchange, :hmac_c_s,
+    attr_accessor :user, :host, :port, :fd, :timeout, :key_exchange, :hmac_c_s,
                   :hmac_s_c, :hostkeys, :publickey_accepted_types,
                   :stricthostkeycheck, :password
 

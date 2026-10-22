@@ -1,6 +1,6 @@
 #include "libssh_ruby.h"
 
-static ID id_host, id_port, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
+static ID id_host, id_port, id_fd, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
           id_hmac_s_c, id_hostkeys, id_publickey_accepted_types,
           id_stricthostkeycheck, id_host_publickey, id_password, id_key,
           id_proxy_jump;
@@ -8,6 +8,7 @@ static ID id_host, id_port, id_user, id_timeout, id_key_exchange, id_hmac_c_s,
 void Init_libssh_options(void) {
   id_host                     = rb_intern("host");
   id_port                     = rb_intern("port");
+  id_fd                       = rb_intern("fd");
   id_user                     = rb_intern("user");
   id_timeout                  = rb_intern("timeout");
   id_key_exchange             = rb_intern("key_exchange");
@@ -64,6 +65,14 @@ int libssh_ruby_apply_options(struct libssh_ruby_options *options,
     int rc = ssh_options_set(session, SSH_OPTIONS_PORT, &options->port);
     if (rc < 0) {
       libssh_ruby_set_error(error, options, "Invalid port.");
+      return rc;
+    }
+  }
+
+  if (options->fd != SSH_INVALID_SOCKET) {
+    int rc = ssh_options_set(session, SSH_OPTIONS_FD, &options->fd);
+    if (rc < 0) {
+      libssh_ruby_set_error(error, options, "Invalid file descriptor.");
       return rc;
     }
   }
@@ -161,6 +170,11 @@ static unsigned int get_uint(VALUE options, ID name) {
   return NIL_P(value) ? 0 : NUM2UINT(value);
 }
 
+static socket_t get_socket(VALUE options, ID name) {
+  VALUE value = rb_funcallv_public(options, name, 0, NULL);
+  return NIL_P(value) ? SSH_INVALID_SOCKET : NUM2INT(value);
+}
+
 static long get_long(VALUE options, ID name) {
   VALUE value = rb_funcallv_public(options, name, 0, NULL);
   return NIL_P(value) ? 0 : NUM2LONG(value);
@@ -188,6 +202,7 @@ static VALUE copy_options(VALUE data) {
 
   out->host                     = get_string (in, id_host);
   out->port                     = get_uint   (in, id_port);
+  out->fd                       = get_socket (in, id_fd);
   out->user                     = get_string (in, id_user);
   out->timeout                  = get_long   (in, id_timeout);
   out->key_exchange             = get_string (in, id_key_exchange);
