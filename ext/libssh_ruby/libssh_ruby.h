@@ -23,6 +23,7 @@ typedef struct libssh_ruby_error libssh_ruby_error;
 struct libssh_ruby_options {
   char*        host;                      // SSH_OPTIONS_HOST
   unsigned int port;                      // SSH_OPTIONS_PORT
+  socket_t     fd;                        // SSH_OPTIONS_FD
   char*        user;                      // SSH_OPTIONS_USER
   long         timeout;                   // SSH_OPTIONS_TIMEOUT
   char*        key_exchange;              // SSH_OPTIONS_KEY_EXCHANGE

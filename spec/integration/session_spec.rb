@@ -88,6 +88,15 @@ RSpec.describe LibSSH::Session do
         raise_error LibSSH::Error, "Server does not have the expected public key. (Host: localhost)"
     end
 
+    specify "file descriptor" do
+      socket = TCPSocket.new(SshHelper.host, DockerHelper.port)
+      expect { build(password: SshHelper.password, fd: socket.fileno).connect }.not_to raise_error
+    ensure
+      @session&.disconnect
+      @session = nil
+      socket&.close
+    end
+
     specify "proxy jumps" do
       credentials = { user: SshHelper.user, password: SshHelper.password }
       options     = { host: "127.0.0.1", port: 2222,              **credentials, stricthostkeycheck: false }
